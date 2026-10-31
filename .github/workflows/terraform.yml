@@ -32,8 +32,8 @@ jobs:
 
       - uses: aquasecurity/tfsec-action@v1.0.3
 
-  # Plan contra o state de producao: cluster e gateway sao compartilhados pelos dois ambientes
-  # (ADR-0010), entao o PR e a homolog validam a mudanca contra o que existe de fato.
+  # Plan contra o state de producao, o unico ambiente na AWS (ADR-0021): o PR e a homolog
+  # validam a mudanca contra o que existe de fato.
   plan:
     name: Plan
     needs: validate
@@ -58,8 +58,8 @@ jobs:
 
       - run: terraform plan -lock=false -var-file=envs/prod.tfvars
 
-  # Apply so na main. O cluster e unico, com um namespace por ambiente (ADR-0010): um apply na
-  # homolog criaria um segundo cluster, entao ela para no Plan acima.
+  # Apply so na main. Existe um ambiente so na AWS (ADR-0021): um apply na homolog criaria um
+  # segundo cluster, entao ela para no Plan acima. A homologacao e o e2e local (local/).
   apply:
     name: Apply
     needs: validate

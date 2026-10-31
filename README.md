@@ -129,7 +129,7 @@ Nenhum ARN ou DNS é copiado à mão: cada passo encontra o anterior por nome ou
 
 Os jobs com AWS só rodam com a variável `AWS_DEPLOY_ENABLED=true`: as credenciais do Learner Lab expiram a cada sessão, e sem elas o push não deve ficar vermelho.
 
-O Learner Lab não permite criar roles IAM nem chaves KMS. Por isso o cluster usa `LabEksClusterRole` e `LabRole`, os pods herdam a `LabRole` pelo IMDS (hop limit 2 no launch template, [ADR-0016](https://github.com/Kc1t/postech-tc4-os-service/blob/main/docs/adr/)) e a criptografia usa chaves gerenciadas pela AWS. A AZ `use1-az3` fica de fora porque o EKS não aceita control plane nela.
+O Learner Lab não permite criar roles IAM nem chaves KMS. Por isso o cluster usa `LabEksClusterRole` e `LabRole`, os pods herdam a `LabRole` pelo IMDS (hop limit 2 no launch template, [ADR-0016](https://github.com/Kc1t/postech-tc4-os-service/blob/main/docs/adr/0016-credenciais-dos-pods-pela-labrole.md)) e a criptografia usa chaves gerenciadas pela AWS. A AZ `use1-az3` fica de fora porque o EKS não aceita control plane nela.
 
 ## Execução local
 
