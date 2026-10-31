@@ -3,6 +3,7 @@
 *.tfstate.*
 *.tfvars
 !envs/*.tfvars
+!observability/envs/*.tfvars
 crash.log
 kubeconfig*
 local/.gateway.conf
