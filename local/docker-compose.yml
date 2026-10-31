@@ -1,0 +1,133 @@
+# Ambiente de integração ponta a ponta: os três microsserviços reais, cada um com o próprio banco,
+# conversando só por SNS/SQS (LocalStack) e pela API composition. É o mesmo desenho do EKS, com
+# o LocalStack no lugar da AWS e o Mailpit no lugar do SMTP da Brevo.
+#
+# Precisa dos repositórios lado a lado (postech-tc4-os-service, -billing-service,
+# -execution-service e -notification-lambda na mesma pasta que este).
+#
+#   make up && make e2e
+name: tc4-e2e
+
+x-aws: &aws
+  AWS_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_ENDPOINT_URL: http://localstack:4566
+
+x-common: &common
+  JWT_SECRET: ${JWT_SECRET:-e2e-jwt-secret-troque}
+  FAULT_INJECTION_ENABLED: "true"
+  CORS_ALLOWED_ORIGINS: http://localhost:3000
+  OUTBOX_POLL_INTERVAL: 200ms
+
+services:
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: e2e-localstack
+    ports:
+      - "${LOCALSTACK_PORT:-4566}:4566"
+    environment:
+      SERVICES: sns,sqs,dynamodb,lambda,logs,iam,sts
+      AWS_DEFAULT_REGION: us-east-1
+      # A Lambda de notificação roda em container próprio, na rede do compose (alcança o Mailpit).
+      LAMBDA_DOCKER_NETWORK: tc4-e2e_default
+      LAMBDA_RUNTIME_ENVIRONMENT_TIMEOUT: "60"
+    volumes:
+      - ./localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/tc4-ready"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+
+  os-postgres:
+    image: postgres:16-alpine
+    container_name: e2e-os-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: workshop
+    ports:
+      - "${OS_POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d workshop"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  billing-postgres:
+    image: postgres:16-alpine
+    container_name: e2e-billing-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: billing
+    ports:
+      - "${BILLING_POSTGRES_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d billing"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  os-service:
+    build: ../../postech-tc4-os-service
+    image: tc4/os-service:e2e
+    container_name: e2e-os-service
+    ports:
+      - "${OS_SERVICE_PORT:-8080}:8080"
+    environment:
+      <<: [*aws, *common]
+      POSTGRES_DSN: postgres://postgres:postgres@os-postgres:5432/workshop?sslmode=disable
+      SQS_SAGA_REPLIES_URL: http://localstack:4566/000000000000/os-saga-replies
+      SQS_BILLING_COMMANDS_URL: http://localstack:4566/000000000000/billing-commands
+      SQS_EXECUTION_COMMANDS_URL: http://localstack:4566/000000000000/execution-commands
+      SNS_OS_EVENTS_ARN: arn:aws:sns:us-east-1:000000000000:os-events
+      BILLING_SERVICE_URL: http://billing-service:8082
+      EXECUTION_SERVICE_URL: http://execution-service:8080
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-e2e-internal-token}
+      SAGA_APPROVAL_TIMEOUT: ${SAGA_APPROVAL_TIMEOUT:-72h}
+      SAGA_PAYMENT_TIMEOUT: ${SAGA_PAYMENT_TIMEOUT:-24h}
+      SAGA_TIMEOUT_CHECK_INTERVAL: ${SAGA_TIMEOUT_CHECK_INTERVAL:-5s}
+    depends_on:
+      os-postgres: { condition: service_healthy }
+      localstack: { condition: service_healthy }
+
+  billing-service:
+    build: ../../postech-tc4-billing-service
+    image: tc4/billing-service:e2e
+    container_name: e2e-billing-service
+    ports:
+      - "${BILLING_SERVICE_PORT:-8082}:8082"
+    environment:
+      <<: [*aws, *common]
+      APP_PORT: "8082"
+      POSTGRES_DSN: postgres://postgres:postgres@billing-postgres:5432/billing?sslmode=disable
+      SQS_BILLING_COMMANDS_URL: http://localstack:4566/000000000000/billing-commands
+      SNS_BILLING_EVENTS_ARN: arn:aws:sns:us-east-1:000000000000:billing-events
+      PAYMENT_GATEWAY: fake
+      FAKE_CHECKOUT_BASE_URL: http://localhost:${BILLING_SERVICE_PORT:-8082}
+    depends_on:
+      billing-postgres: { condition: service_healthy }
+      localstack: { condition: service_healthy }
+
+  execution-service:
+    build: ../../postech-tc4-execution-service
+    image: tc4/execution-service:e2e
+    container_name: e2e-execution-service
+    ports:
+      - "${EXECUTION_SERVICE_PORT:-8083}:8080"
+    environment:
+      <<: [*aws, *common]
+      DYNAMODB_TABLE: executions
+      SQS_EXECUTION_COMMANDS_URL: http://localstack:4566/000000000000/execution-commands
+      SNS_EXECUTION_EVENTS_ARN: arn:aws:sns:us-east-1:000000000000:execution-events
+    depends_on:
+      localstack: { condition: service_healthy }
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: e2e-mailpit
+    ports:
+      - "${MAILPIT_UI_PORT:-8026}:8025"

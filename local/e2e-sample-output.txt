@@ -1,0 +1,81 @@
+
+▶ preparação: login da equipe, cliente, veículo, serviço e peça
+  ✔ veículo TCE7256, serviço 72564, peça PAS-E2E-7256 (estoque 10)
+
+▶ cliente troca o CPF por um JWT na Lambda auth-issuer
+  ✔ token do cliente emitido pela Lambda
+
+▶ 1. caminho feliz
+  ✔ OS 104241d5-e944-4b96-9896-38e28284f9b0 aberta
+  ✔ execução em queued_diagnosis
+  ✔ mecânico concluiu o diagnóstico
+  ✔ OS em awaiting_approval
+  ✔ cliente aprovou o orçamento 3fa1e884-5af8-4fed-99f2-bfa4fa1eaaf4 (JWT do issuer)
+  ✔ orçamento: .payment.status = pending
+  ✔ pagamento f0f70e10-67db-412d-9c7d-3db90db01683: approved
+  ✔ OS em in_execution
+  ✔ execução em queued_repair
+  ✔ OS em finished
+  ✔ OS em delivered
+  ✔ estoque baixou 2 peças (8)
+  ✔ API composition: orçamento aprovado, pagamento aprovado e execução finalizada no /details
+    - → received (staff)
+    received → in_diagnosis (saga)
+    in_diagnosis → awaiting_budget (saga)
+    awaiting_budget → awaiting_approval (saga)
+    awaiting_approval → awaiting_payment (saga)
+    awaiting_payment → in_execution (saga)
+    in_execution → finished (saga)
+    finished → delivered (staff)
+
+▶ notificação: e-mails da Lambda notifier no Mailpit
+  ✔ 7 e-mails para ana.e2e@example.com
+    OS #4 entregue
+    OS #4 finalizada
+    Pagamento confirmado: OS #4 em execução
+    Pagamento da OS #4
+    Orçamento da OS #4: R$ 330,00
+    OS #4 em diagnóstico
+    OS #4 aberta
+
+▶ 2. pagamento recusado → compensação
+  ✔ execução em queued_diagnosis
+  ✔ mecânico concluiu o diagnóstico
+  ✔ OS em awaiting_approval
+  ✔ cliente aprovou o orçamento 7c3f4d50-a027-4588-bc11-ee19e9b5189d (JWT do issuer)
+  ✔ peças reservadas (estoque 6)
+  ✔ orçamento: .payment.status = pending
+  ✔ pagamento 9ea32b91-ddd4-46a9-815b-2c8e6acd758d: rejected
+  ✔ OS em cancelled
+  ✔ execução em cancelled
+  ✔ orçamento: .status = cancelled
+  ✔ peças devolvidas ao estoque (8)
+
+▶ 3. reparo recusado depois do pagamento → estorno
+  ✔ execução em queued_diagnosis
+  ✔ mecânico concluiu o diagnóstico
+  ✔ OS em awaiting_approval
+  ✔ cliente aprovou o orçamento f69af9e2-667e-4ef8-8158-294a28001069 (JWT do issuer)
+  ✔ orçamento: .payment.status = pending
+  ✔ pagamento f67155c3-4e9a-42dd-ac73-83eb8a58b5b5: approved
+  ✔ OS em cancelled
+  ✔ orçamento: .payment.status = refunded
+  ✔ execução em rejected
+  ✔ peças devolvidas ao estoque (8)
+    saga: cancelled · motivo: execução recusada pela oficina: falha simulada: reparo recusado (simulate_failure=repair)
+
+▶ 4. cliente recusa o orçamento
+  ✔ execução em queued_diagnosis
+  ✔ mecânico concluiu o diagnóstico
+  ✔ OS em awaiting_approval
+  ✔ OS em cancelled
+  ✔ execução em cancelled
+  ✔ peças devolvidas ao estoque (8)
+
+▶ filas: nada parado nas DLQs
+  ✔ os-saga-replies-dlq vazia
+  ✔ billing-commands-dlq vazia
+  ✔ execution-commands-dlq vazia
+  ✔ notification-os-events-dlq vazia
+
+✔ e2e completo: caminho feliz + 3 compensações, com notificação e API composition
