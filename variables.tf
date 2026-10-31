@@ -5,7 +5,7 @@ variable "aws_region" {
 
 variable "project_name" {
   type    = string
-  default = "postech-tc3"
+  default = "postech-tc4"
 }
 
 variable "environment" {
@@ -13,7 +13,27 @@ variable "environment" {
 }
 
 variable "vpc_id" {
-  type = string
+  type        = string
+  default     = ""
+  description = "VPC do cluster; vazio usa a VPC padrão da conta (a do Learner Lab)"
+}
+
+variable "k8s_namespace" {
+  type        = string
+  default     = "postech"
+  description = "Namespace dos microsserviços: o gateway procura os NLBs <serviço>-public nele"
+}
+
+variable "max_receive_count" {
+  type        = number
+  default     = 5
+  description = "Entregas sem sucesso antes de a mensagem ir para a DLQ"
+}
+
+variable "notification_visibility_timeout" {
+  type        = number
+  default     = 180
+  description = "Visibilidade da fila da Lambda de notificação (6x o timeout da function, como recomenda a AWS)"
 }
 
 variable "cluster_version" {
@@ -41,30 +61,16 @@ variable "node_desired" {
   default = 2
 }
 
-variable "lambda_issuer_invoke_arn" {
-  type    = string
-  default = ""
-}
-
 variable "lambda_issuer_function_name" {
-  type    = string
-  default = ""
-}
-
-variable "lambda_authorizer_invoke_arn" {
-  type    = string
-  default = ""
+  type        = string
+  default     = ""
+  description = "Vazio = <project>-<environment>-auth-issuer (nome criado pelo postech-tc4-lambda-auth)"
 }
 
 variable "lambda_authorizer_function_name" {
-  type    = string
-  default = ""
-}
-
-variable "app_backend_url" {
   type        = string
   default     = ""
-  description = "URL publica do Service LoadBalancer da aplicacao, ex http://a1b2c3.elb.amazonaws.com"
+  description = "Vazio = <project>-<environment>-auth-authorizer"
 }
 
 variable "metrics_server_version" {
@@ -91,6 +97,7 @@ variable "lab_eks_cluster_role_regex" {
 }
 
 variable "lab_eks_node_role_regex" {
-  type    = string
-  default = "LabEksNodeRole"
+  type        = string
+  default     = "^LabRole$"
+  description = "Role dos nós. LabRole porque os pods herdam dela o acesso a SQS, SNS e DynamoDB; a LabEksNodeRole só tem as policies de worker"
 }

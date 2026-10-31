@@ -5,6 +5,7 @@ on:
     branches: [main, homolog]
   push:
     branches: [main, homolog]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -36,7 +37,7 @@ jobs:
   plan:
     name: Plan
     needs: validate
-    if: github.event_name == 'pull_request' || github.ref_name == 'homolog'
+    if: (github.event_name == 'pull_request' || github.ref_name == 'homolog') && vars.AWS_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: staging
     steps:
@@ -62,9 +63,9 @@ jobs:
   apply:
     name: Apply
     needs: validate
-    if: github.event_name == 'push' && github.ref_name == 'main'
+    if: github.event_name != 'pull_request' && github.ref_name == 'main' && vars.AWS_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'prod' || 'staging' }}
+    environment: prod
     steps:
       - uses: actions/checkout@v4
 
@@ -78,16 +79,23 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
       - name: Resolve environment
-        run: echo "TF_ENV=${{ github.ref_name == 'main' && 'prod' || 'staging' }}" >> $GITHUB_ENV
+        run: echo "TF_ENV=${{ github.ref_name == 'main' && 'prod' || 'staging' }}" >> "$GITHUB_ENV"
 
       - run: terraform init -backend-config="key=k8s/${TF_ENV}.tfstate" -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" -backend-config="region=${{ secrets.AWS_REGION }}"
 
-      - run: terraform apply -auto-approve -var-file=envs/${TF_ENV}.tfvars
+      - run: terraform apply -auto-approve -var-file="envs/${TF_ENV}.tfvars"
+
+      # O gateway liga as rotas aos NLBs dos serviços e às Lambdas que já existem. Rodar o
+      # workflow de novo (workflow_dispatch) depois do deploy deles completa as rotas.
 
       - name: Configurar kubectl
         run: aws eks update-kubeconfig --region "${{ secrets.AWS_REGION }}" --name "$(terraform output -raw cluster_name)"
+
+      - name: Namespace, quota e LimitRange dos microsserviços
+        run: kubectl apply -f k8s/namespace.yaml
 
       - name: Instalar o agente do New Relic
         env:
@@ -107,11 +115,18 @@ jobs:
             --set global.cluster="$CLUSTER_NAME" \
             --wait --timeout 10m
 
-      - name: Publicar o endpoint do gateway
+      - name: Publicar o endpoint do gateway e a mensageria
         run: |
           {
             echo "### API Gateway"
             echo '```'
             terraform output -raw api_gateway_endpoint
+            echo
+            terraform output -json api_gateway_routes
             echo '```'
-          } >> $GITHUB_STEP_SUMMARY
+            echo "### Filas e tópicos"
+            echo '```'
+            terraform output -json sqs_queue_urls
+            terraform output -json sns_topic_arns
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

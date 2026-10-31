@@ -8,10 +8,19 @@ locals {
   }
 }
 
+data "aws_vpc" "default" {
+  count   = var.vpc_id == "" ? 1 : 0
+  default = true
+}
+
+locals {
+  vpc_id = var.vpc_id != "" ? var.vpc_id : data.aws_vpc.default[0].id
+}
+
 data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
-    values = [var.vpc_id]
+    values = [local.vpc_id]
   }
 
   filter {

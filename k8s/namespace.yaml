@@ -1,0 +1,40 @@
+# Namespace dos microsserviços e o teto de consumo dele. Fica na plataforma, e não em um
+# serviço, porque a quota vale para o namespace inteiro (os três serviços somados).
+# Aplicado pelo CI deste repositório depois do cluster: kubectl apply -f k8s/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: postech
+  labels:
+    app.kubernetes.io/part-of: oficina
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: oficina-quota
+  namespace: postech
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 4Gi
+    limits.cpu: "10"
+    limits.memory: 10Gi
+    pods: "30"  # 3 serviços x até 6 réplicas (HPA) + folga para o rolling update
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: oficina-quota
+  namespace: postech
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      max:
+        cpu: "1"
+        memory: 1Gi

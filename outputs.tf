@@ -19,11 +19,25 @@ output "api_gateway_endpoint" {
 }
 
 output "api_gateway_routes" {
+  description = "Rotas criadas neste apply (as de um serviço aparecem depois que o NLB dele existe)"
   value = {
-    emitir_token  = "POST ${aws_apigatewayv2_api.this.api_endpoint}/auth"
-    rotas_abertas = "GET /{proxy+} e POST /api/v1/auth/{proxy+}"
-    rotas_regidas = "ANY /api/v1/{proxy+} (authorizer ${local.authorizer_enabled ? "ativo" : "desligado"})"
+    emitir_token = local.issuer_enabled ? "POST ${aws_apigatewayv2_api.this.api_endpoint}/auth" : "issuer ainda não publicado (${local.issuer_name})"
+    authorizer   = local.authorizer_enabled ? local.authorizer_name : "não publicado: rotas protegidas não são criadas"
+    backends     = { for k, lb in data.aws_lb.backend : k => lb.dns_name }
+    rotas        = sort(keys(local.live_routes))
   }
+}
+
+output "sns_topic_arns" {
+  value = { for k, t in aws_sns_topic.this : k => t.arn }
+}
+
+output "sqs_queue_urls" {
+  value = { for k, q in aws_sqs_queue.this : k => q.url }
+}
+
+output "sqs_dlq_urls" {
+  value = { for k, q in aws_sqs_queue.dlq : k => q.url }
 }
 
 output "kubeconfig_command" {

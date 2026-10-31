@@ -45,6 +45,38 @@ resource "aws_cloudwatch_log_group" "cluster" {
   tags = local.tags
 }
 
+# Os pods chamam SQS, SNS e DynamoDB com a credencial do nó (IMDSv2). Sem launch template,
+# o node group AL2023 usa hop limit 1 e o container não alcança o IMDS. Com 2, alcança.
+# Fora do Learner Lab o certo seria EKS Pod Identity (uma role por serviço), mas o lab não
+# deixa criar roles (ADR-0016).
+resource "aws_launch_template" "workers" {
+  name_prefix = "${local.name}-workers-"
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      volume_size           = 20
+      volume_type           = "gp3"
+      encrypted             = true
+      delete_on_termination = true
+    }
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags          = merge(local.tags, { Name = "${local.name}-worker" })
+  }
+
+  tags = local.tags
+}
+
 resource "aws_eks_node_group" "workers" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "workers"
@@ -53,7 +85,13 @@ resource "aws_eks_node_group" "workers" {
 
   instance_types = [var.node_instance_type]
   ami_type       = "AL2023_x86_64_STANDARD"
-  disk_size      = 20
+
+  # Sem security group no template, o EKS põe o security group do cluster nos nós (é por
+  # ele que os RDS dos serviços liberam a porta 5432).
+  launch_template {
+    id      = aws_launch_template.workers.id
+    version = aws_launch_template.workers.latest_version
+  }
 
   scaling_config {
     min_size     = var.node_min
