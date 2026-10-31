@@ -31,7 +31,7 @@ defaults:
 
 jobs:
   validate:
-    name: Validate
+    name: Validate (observability)
     runs-on: ubuntu-latest
     env:
       # O provider exige a api_key para validar a configuração; o validate não chama a API.
