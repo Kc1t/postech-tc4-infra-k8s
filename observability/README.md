@@ -27,7 +27,7 @@ Raiz Terraform própria, separada da infra da AWS: dashboard, alertas com runboo
 
 ## Como aplicar
 
-Pelo CI (push na `main` que mexa em `observability/`, ou *Run workflow*): `scripts/setup-github.sh newrelic` grava `NEW_RELIC_ACCOUNT_ID` (variável), `NEW_RELIC_API_KEY` (user key `NRAK-...`, secret) e, se informado, `NEW_RELIC_ALERT_EMAIL` no `postech-tc4-infra-k8s`. O job `validate` roda sempre; o `apply` só na `main` e com `NEW_RELIC_ACCOUNT_ID` definido. Ele também precisa de `aws` e `state` do mesmo script (credenciais do lab e bucket do state).
+Pelo CI (push na `main` que mexa em `observability/`, ou *Run workflow*): `scripts/setup-github.sh newrelic` grava `NEW_RELIC_ACCOUNT_ID` (variável), `NEW_RELIC_API_KEY` (user key `NRAK-...`, secret) e, se informado, `NEW_RELIC_ALERT_EMAIL` no `postech-tc4-infra-k8s`. O job `validate` roda sempre (também nos PRs que mexem em `observability/`); o `apply` só na `main`, com `NEW_RELIC_ACCOUNT_ID` definido e `AWS_DEPLOY_ENABLED=true`, porque o state fica no S3 do lab. Ele também precisa de `aws` e `state` do mesmo script (credenciais do lab e bucket do state).
 
 Localmente:
 

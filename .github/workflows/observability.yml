@@ -3,6 +3,11 @@ name: Observability
 # Dashboard, alertas, SLOs e workload do New Relic (observability/), separados da infra da AWS:
 # o apply aqui não toca no cluster nem nas filas, e o da infra não depende da user key.
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "observability/**"
+      - ".github/workflows/observability.yml"
   push:
     branches: [main]
     paths:
@@ -44,12 +49,13 @@ jobs:
 
       - run: terraform validate
 
-  # Só aplica com a conta do New Relic configurada (scripts/setup-github.sh newrelic): sem ela o
-  # push na main fica só no validate, sem falhar.
+  # Só aplica na main, com a conta do New Relic configurada (scripts/setup-github.sh newrelic) e com
+  # AWS_DEPLOY_ENABLED=true, porque o state fica no S3 do Learner Lab, cujas credenciais expiram a
+  # cada sessão. Sem isso, o push fica só no validate, sem falhar.
   apply:
     name: Apply
     needs: validate
-    if: github.ref_name == 'main' && vars.NEW_RELIC_ACCOUNT_ID != ''
+    if: github.event_name != 'pull_request' && github.ref_name == 'main' && vars.NEW_RELIC_ACCOUNT_ID != '' && vars.AWS_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: prod
     env:
