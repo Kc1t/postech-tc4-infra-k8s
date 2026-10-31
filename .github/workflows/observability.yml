@@ -1,0 +1,97 @@
+name: Observability
+
+# Dashboard, alertas, SLOs e workload do New Relic (observability/), separados da infra da AWS:
+# o apply aqui não toca no cluster nem nas filas, e o da infra não depende da user key.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "observability/**"
+      - ".github/workflows/observability.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: observability-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: 1.9.8
+
+defaults:
+  run:
+    working-directory: observability
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    env:
+      # O provider exige a api_key para validar a configuração; o validate não chama a API.
+      NEW_RELIC_API_KEY: validate-only
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - run: terraform fmt -check -recursive
+
+      - run: terraform init -backend=false
+
+      - run: terraform validate
+
+  # Só aplica com a conta do New Relic configurada (scripts/setup-github.sh newrelic): sem ela o
+  # push na main fica só no validate, sem falhar.
+  apply:
+    name: Apply
+    needs: validate
+    if: github.ref_name == 'main' && vars.NEW_RELIC_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+      TF_VAR_new_relic_account_id: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
+      TF_VAR_alert_email: ${{ vars.NEW_RELIC_ALERT_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # O state fica no mesmo bucket S3 da infra, com chave própria.
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Conferir a user key
+        run: |
+          if [ -z "$NEW_RELIC_API_KEY" ]; then
+            echo "::error::NEW_RELIC_API_KEY não configurada (scripts/setup-github.sh newrelic)"
+            exit 1
+          fi
+
+      - run: terraform init -input=false -backend-config="key=observability/prod.tfstate" -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" -backend-config="region=${{ vars.AWS_REGION || 'us-east-1' }}"
+
+      - run: terraform apply -auto-approve -input=false -var-file=envs/prod.tfvars
+
+      - name: Publicar os links
+        run: |
+          {
+            echo "### New Relic"
+            echo "- Dashboard: $(terraform output -raw dashboard_url)"
+            echo "- Workload: $(terraform output -raw workload_url)"
+            echo "- Alertas: $(terraform output -raw email_alerts)"
+            echo '```'
+            terraform output -json service_levels
+            terraform output -json apps_sem_slo
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

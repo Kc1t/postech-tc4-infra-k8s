@@ -157,10 +157,24 @@ cmd_state() {
   put_secret TF_STATE_BUCKET "$bucket" "${ALL[@]}"
 }
 
+# Duas chaves diferentes: a license key (ingestão) vai para todos os repos que mandam telemetria;
+# a user key (NRAK-..., API NerdGraph) só para o infra, que aplica dashboards e alertas.
 cmd_newrelic() {
-  info "New Relic (license key de ingestão, não a user key)"
-  put_secret NEW_RELIC_LICENSE_KEY "$(ask_secret 'License key')" "${ALL[@]}"
-  put_var NEW_RELIC_ACCOUNT_ID "$(ask 'Account ID')" "$AUTH" "$NOTIFIER"
+  info "New Relic: license key de ingestão, account id, user key e e-mail dos alertas"
+  put_secret NEW_RELIC_LICENSE_KEY "$(ask_secret 'License key (ingestão)')" "${ALL[@]}"
+  put_var NEW_RELIC_ACCOUNT_ID "$(ask 'Account ID')" "$AUTH" "$NOTIFIER" "$INFRA"
+
+  local user_key email
+  user_key=$(ask_secret 'User key (NRAK-..., para o Terraform de observability/)')
+  case $user_key in NRAK-*) ;; *) die "a user key começa com NRAK-" ;; esac
+  put_secret NEW_RELIC_API_KEY "$user_key" "$INFRA"
+
+  email=$(ask 'E-mail que recebe os alertas (Enter para não enviar e-mail)')
+  if [ -n "$email" ]; then
+    put_var NEW_RELIC_ALERT_EMAIL "$email" "$INFRA"
+  else
+    echo "  sem e-mail: os incidentes ficam só no New Relic"
+  fi
 }
 
 cmd_smtp() {
