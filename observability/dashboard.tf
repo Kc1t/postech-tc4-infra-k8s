@@ -357,7 +357,7 @@ resource "newrelic_one_dashboard" "ordem_de_servico" {
       column = 1
       width  = 12
       height = 2
-      text   = "Cada mensagem sai do outbox numa transação `OutboxRelay/*` que reaceita o trace da requisição, vai por SNS/SQS com `traceparent` nos atributos e chega à transação `Consume/*` do consumidor, no mesmo trace. Sem a integração AWS (Learner Lab), a DLQ aparece aqui pelo `message_failed` na entrega de número ${var.max_receive_count}. Para abrir um trace, copie o `trace.id` e cole em *Distributed tracing*. Runbooks: [DLQ](${local.runbook["dlq"]}) · [malformada](${local.runbook["mensagem-malformada"]})."
+      text   = "Cada mensagem sai do outbox numa transação `OutboxRelay/*` que reaceita o trace da requisição, vai por SNS/SQS com `traceparent` nos atributos e chega à transação `Consume/*` do consumidor, no mesmo trace. Sem a integração AWS (Learner Lab), a DLQ aparece aqui pelo `message_failed` na entrega de número ${var.max_receive_count}. Para abrir um trace, copie o `trace.id` e cole em *Distributed tracing*. Runbooks: [DLQ](${local.runbook["dlq"]}) · [malformada](${local.runbook["mensagem-malformada"]}) · [outbox travado](${local.runbook["outbox-travado"]})."
     }
 
     widget_billboard {
@@ -395,7 +395,7 @@ resource "newrelic_one_dashboard" "ordem_de_servico" {
       critical = "1"
       nrql_query {
         account_id = local.acc
-        query      = "SELECT count(*) AS 'Falhas' FROM Log WHERE message = 'outbox_publish_failed' FACET container_name"
+        query      = "SELECT filter(count(*), WHERE message = 'outbox_publish_failed') AS 'Falhas', filter(count(*), WHERE message = 'outbox_message_stuck') AS 'Travadas' FROM Log WHERE message IN ('outbox_publish_failed', 'outbox_message_stuck') FACET container_name"
       }
     }
 

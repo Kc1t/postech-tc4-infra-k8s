@@ -79,6 +79,17 @@ locals {
         fill_zero   = true
       }
 
+      "outbox-travado" = {
+        name        = "mensageria: mensagem travada no outbox"
+        description = "Log outbox_message_stuck: o relay já tentou publicar a mesma mensagem 10 vezes (uns 8 min) e ela não sai do serviço. A saga daquela OS fica parada até o prazo."
+        runbook     = local.runbook["outbox-travado"]
+        query       = "SELECT count(*) FROM Log WHERE message = 'outbox_message_stuck'"
+        window      = 300
+        critical    = 0
+        warning     = null
+        fill_zero   = true
+      }
+
       "notifier-envio" = {
         name        = "lambda notifier: falhas de envio de e-mail acima de 4 em 5 min"
         description = "Logs notification_send_failed, notification_dedup_failed e notification_render_failed. A Lambda devolve a mensagem para a fila sem marcar erro na invocação, por isso o sinal é o log."

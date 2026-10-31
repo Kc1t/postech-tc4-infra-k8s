@@ -6,7 +6,7 @@ locals {
 
   runbook = { for f in [
     "servico-erros", "servico-latencia", "saga-compensacao", "saga-expirada",
-    "dlq", "mensagem-malformada", "lambda-erros", "authorizer-negacoes",
+    "dlq", "mensagem-malformada", "outbox-travado", "lambda-erros", "authorizer-negacoes",
   ] : f => "${var.runbook_base_url}/${f}.md" }
 
   # appName IN (...) dos três serviços.

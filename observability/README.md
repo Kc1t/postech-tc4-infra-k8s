@@ -8,7 +8,7 @@ Raiz Terraform própria, separada da infra da AWS: dashboard, alertas com runboo
 |---|---|
 | `workload.tf` | Workload **Ordem de Serviço (prod)**: os três serviços (APM), as três Lambdas e o cluster, por consulta de entidade (sem GUID fixo) |
 | `dashboard.tf` | Dashboard com 4 páginas: **Saga**, **Serviços**, **Mensageria e trace**, **Lambdas** |
-| `alerts.tf` | Uma policy e 15 condições NRQL, cada uma com descrição e `runbook_url` para [`docs/runbooks/`](../docs/runbooks/) |
+| `alerts.tf` | Uma policy e 16 condições NRQL, cada uma com descrição e `runbook_url` para [`docs/runbooks/`](../docs/runbooks/) |
 | `slo.tf` | SLOs: disponibilidade (sem 5xx) dos três serviços, latência do os-service (95% < 500 ms) e o de negócio da saga (OS encerradas sem compensação técnica) |
 | `notifications.tf` | Destino, canal e workflow de e-mail, só quando `alert_email` não é vazio |
 
@@ -20,6 +20,7 @@ Raiz Terraform própria, separada da infra da AWS: dashboard, alertas com runboo
 | `saga: saga expirada por prazo` | [saga-expirada](../docs/runbooks/saga-expirada.md) |
 | `mensageria: mensagem falhou na última entrega antes da DLQ` | [dlq](../docs/runbooks/dlq.md) |
 | `mensageria: mensagem malformada recebida em 5 min` | [mensagem-malformada](../docs/runbooks/mensagem-malformada.md) |
+| `mensageria: mensagem travada no outbox` | [outbox-travado](../docs/runbooks/outbox-travado.md) |
 | `lambda <issuer, authorizer, notifier>: taxa de erro acima de 5% em 5 min` (3) | [lambda-erros](../docs/runbooks/lambda-erros.md) |
 | `lambda notifier: falhas de envio de e-mail acima de 4 em 5 min` | [lambda-erros](../docs/runbooks/lambda-erros.md) |
 | `lambda authorizer: mais de 50 requisições negadas em 5 min` | [authorizer-negacoes](../docs/runbooks/authorizer-negacoes.md) |

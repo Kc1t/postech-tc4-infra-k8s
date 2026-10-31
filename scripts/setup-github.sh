@@ -10,7 +10,7 @@
 #   scripts/setup-github.sh app           JWT_SECRET e INTERNAL_API_TOKEN gerados (os mesmos em todos) e ADMIN_PASSWORD
 #   scripts/setup-github.sh aws           credenciais do Learner Lab (rodar a cada sessão do lab)
 #   scripts/setup-github.sh state         cria o bucket do state do Terraform e grava TF_STATE_BUCKET
-#   scripts/setup-github.sh newrelic      license key e account id do New Relic
+#   scripts/setup-github.sh newrelic      license key, account id, user key (NRAK, para a observabilidade como código) e e-mail dos alertas
 #   scripts/setup-github.sh smtp          usuário, senha e remetente do SMTP (Brevo)
 #   scripts/setup-github.sh mercadopago   access token e segredo do webhook de teste; liga PAYMENT_GATEWAY=mercadopago
 #   scripts/setup-github.sh enable|disable   liga ou desliga os deploys (AWS_DEPLOY_ENABLED)
