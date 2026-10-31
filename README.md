@@ -1,210 +1,170 @@
-# postech-tc3-infra-k8s
+# postech-tc4-infra-k8s
 
-Provisionamento do **cluster Kubernetes (Amazon EKS)** e do **API Gateway** do sistema de gestão de oficinas mecânicas.
+Plataforma compartilhada do sistema de gestão de oficinas mecânicas, já dividido em microsserviços: **cluster EKS**, **API Gateway**, **mensageria da saga (SNS + SQS + DLQ)**, agente do New Relic e o **ambiente ponta a ponta local** com os três serviços e as duas Lambdas.
 
-Tech Challenge Fase 3 — FIAP Pós Tech SOAT.
+Tech Challenge Fase 4, FIAP Pós Tech SOAT.
 
-## Propósito
+## Onde fica cada parte
 
-Entrega a plataforma onde a aplicação roda: cluster EKS com node group escalável e o HTTP API Gateway que fica na frente dele. O banco vive em [`postech-tc3-infra-database`](https://github.com/Kc1t/postech-tc3-infra-database); a aplicação, em [`postech-tc3-app`](https://github.com/Kc1t/postech-tc3-app); o autorizador, em [`postech-tc3-lambda-auth`](https://github.com/Kc1t/postech-tc3-lambda-auth).
+| Repositório | Conteúdo | Dados |
+|---|---|---|
+| **postech-tc4-infra-k8s** (este) | EKS, API Gateway, SNS/SQS/DLQ, namespace e quota, New Relic no cluster, e2e local | — |
+| [postech-tc4-os-service](https://github.com/Kc1t/postech-tc4-os-service) | ordens de serviço, catálogo, clientes e veículos; **orquestrador da saga**; ADRs, RFCs e AsyncAPI | RDS Postgres `workshop` (`infra/` do repo) |
+| [postech-tc4-billing-service](https://github.com/Kc1t/postech-tc4-billing-service) | orçamento e pagamento (Mercado Pago) | RDS Postgres `billing` (`infra/` do repo) |
+| [postech-tc4-execution-service](https://github.com/Kc1t/postech-tc4-execution-service) | fila de diagnóstico e reparo da oficina | DynamoDB `executions` (`infra/` do repo) |
+| [postech-tc4-lambda-auth](https://github.com/Kc1t/postech-tc4-lambda-auth) | Lambdas issuer (CPF → JWT) e authorizer do gateway | consulta o os-service |
+| [postech-tc4-notification-lambda](https://github.com/Kc1t/postech-tc4-notification-lambda) | Lambda que manda e-mail a cada mudança de status da OS | DynamoDB de deduplicação |
 
-## Tecnologias
-
-- Terraform >= 1.5
-- AWS: EKS (addons `metrics-server` e `vpc-cni` com NetworkPolicy), API Gateway v2 (HTTP API), CloudWatch Logs
-- New Relic: `nri-bundle` instalado via Helm pelo pipeline
-- Backend de state: S3
-- CI/CD: GitHub Actions com a credencial de sessão do AWS Academy Learner Lab
-- Dockerfile: não se aplica — este repositório só provisiona infraestrutura
+Cada serviço provisiona o próprio banco (banco por serviço). Este repositório guarda só o que é compartilhado.
 
 ## Arquitetura
 
 ```mermaid
 flowchart TB
-    cli(["Cliente"]) --> gw["API Gateway v2<br/>HTTP API · stage $default<br/>throttle 100 req/s"]
+    cli(["Cliente / equipe / Mercado Pago"]) --> gw["API Gateway HTTP<br/>throttle 100 req/s · POST /auth 10 req/s"]
+    gw -.->|"REQUEST authorizer<br/>cache TTL 0"| az["λ auth-authorizer"]
+    gw -->|AWS_PROXY| iss["λ auth-issuer"]
+    gw -->|HTTP_PROXY| nlbos["NLB os-service"] & nlbbi["NLB billing-service"] & nlbex["NLB execution-service"]
 
-    gw -.->|"REQUEST authorizer<br/>cache TTL = 0"| az["Lambda authorizer"]
-    gw -->|"AWS_PROXY"| iss["Lambda issuer"]
-    gw -->|"HTTP_PROXY"| nlb["NLB público"]
-
-    nlb --> svc["Service workshop-api"]
-
-    subgraph eks["Cluster EKS 1.35"]
-        svc --> pods["Deployment<br/>2 a 10 pods"]
-        ms["addon metrics-server"] --> hpa["HPA<br/>CPU 70% · Mem 80%"]
-        hpa -->|escala| pods
-        ng["Managed node group<br/>t3.medium · 2 a 5 nós"]
-        nr["nri-bundle do New Relic<br/>infra · logs · eventos · prometheus"]
+    subgraph eks["EKS 1.35 · namespace postech"]
+        os["os-service<br/>2 a 6 pods"]
+        bi["billing-service<br/>2 a 6 pods"]
+        ex["execution-service<br/>2 a 6 pods"]
+        nr["nri-bundle<br/>infra · logs · eventos"]
     end
+    nlbos --> os
+    nlbbi --> bi
+    nlbex --> ex
+    iss -->|"GET /internal/requesters<br/>X-Internal-Token"| nlbos
 
-    pods --> rds[("RDS<br/>outro repositório")]
-    iss --> rds
-    gw --> cwl["CloudWatch<br/>access log em JSON"]
+    os --- rdsos[("RDS workshop")]
+    bi --- rdsbi[("RDS billing")]
+    ex --- ddb[("DynamoDB executions")]
+
+    subgraph msg["Mensageria (messaging.tf)"]
+        osev{{"SNS os-events"}}
+        biev{{"SNS billing-events"}}
+        exev{{"SNS execution-events"}}
+        rep[["SQS os-saga-replies"]]
+        bic[["SQS billing-commands"]]
+        exc[["SQS execution-commands"]]
+        notq[["SQS notification-os-events"]]
+    end
+    os -->|comandos| bic & exc
+    bic --> bi
+    exc --> ex
+    bi --> biev --> rep
+    ex --> exev --> rep
+    rep --> os
+    os --> osev --> notq --> notif["λ notifier"] --> smtp["SMTP (Brevo)"]
+    os & bi --> mp["Mercado Pago"]
     nr --> nrc["New Relic"]
-
-    style gw fill:#e8f0fe,stroke:#4a7
-    style az fill:#fff4e0,stroke:#d90
-    style hpa fill:#e6f4ea,stroke:#4a7
 ```
 
-### Grafo de decisão do gateway
-
-```mermaid
-flowchart TD
-    r(["Requisição"]) --> a{"POST /auth ?"}
-    a -->|sim| L1["Lambda issuer — aberta"]
-    a -->|não| b{"POST /api/v1/auth/{proxy+} ?"}
-    b -->|sim| L2["Aplicação — aberta<br/>login da operação"]
-    b -->|não| c{"/api/v1/... ?"}
-    c -->|sim| L3["Aplicação — <b>com authorizer</b>"]
-    c -->|não| d{"GET ?"}
-    d -->|sim| L4["Aplicação — aberta<br/>/health e Swagger"]
-    d -->|não| e404(["404"])
-
-    L3 --> az{{"authorizer"}}
-    az -->|nega| e401(["401"])
-    az -->|autoriza| fwd["encaminha com<br/>subject, role, document"]
-
-    style e401 fill:#ffe4e1,stroke:#c66
-    style e404 fill:#ffe4e1,stroke:#c66
-    style az fill:#fff4e0,stroke:#d90
-```
-
-A rota **mais específica vence**. É por isso que `POST /api/v1/auth/{proxy+}` precisa ser declarada: sem ela, o login cairia na regra protegida e exigiria um token para obter um token.
+Toda fila tem DLQ (`<fila>-dlq`, retenção de 14 dias) e alarme no CloudWatch. As mensagens chegam às filas com raw delivery e o envelope do contrato (`pkg/contracts`, AsyncAPI no os-service).
 
 ## Estrutura
 
 ```
-versions.tf              providers e backend
-variables.tf             entradas
-main.tf                  locals e lookup de subnets
-eks.tf                   cluster + managed node group (recursos nativos, com as roles do Learner Lab)
-iam.tf                   lookup das roles LabEksClusterRole e LabEksNodeRole
-addons.tf                metrics-server (pre-requisito do HPA) e vpc-cni com NetworkPolicy
-api_gateway.tf           HTTP API, stage, rotas, integracoes e authorizer
-helm/newrelic-values.yaml valores do nri-bundle
-outputs.tf               endpoint do cluster, endpoint do gateway, rotas
-envs/                    tfvars por ambiente
+versions.tf, variables.tf, main.tf   providers, entradas, VPC padrão e subnets
+eks.tf, iam.tf, addons.tf            cluster, node group com launch template (IMDSv2, hop 2), roles do Learner Lab,
+                                     metrics-server e vpc-cni com NetworkPolicy
+api_gateway.tf                       HTTP API, rotas por serviço, authorizer, throttling e access log
+messaging.tf                         tópicos SNS, filas SQS, DLQs, policies, assinaturas e alarmes de DLQ
+outputs.tf                           cluster, gateway, rotas, tópicos, filas e DLQs
+k8s/namespace.yaml                   namespace postech com ResourceQuota e LimitRange
+helm/newrelic-values.yaml            valores do nri-bundle
+observability/                       dashboards, alertas, SLOs e workload do New Relic (raiz Terraform própria)
+docs/runbooks/                       o que fazer quando cada alerta dispara
+scripts/setup-github.sh              secrets e variáveis dos seis repositórios
+local/                               ambiente ponta a ponta com docker compose e LocalStack
 ```
 
 ## Rotas do gateway
 
-| Rota | Destino | Autenticacao |
+O gateway se liga sozinho ao que existe: as Lambdas são encontradas pelo nome e os serviços pelo NLB que o Kubernetes cria para cada `Service <serviço>-public` (tag `kubernetes.io/service-name`). Enquanto um serviço não foi publicado, as rotas dele não existem; o próximo `apply` depois do deploy as cria.
+
+| Rota | Destino | Autenticação |
 |---|---|---|
-| `POST /auth` | Lambda emissora | aberta — e onde o CPF vira JWT |
-| `POST /api/v1/auth/{proxy+}` | aplicacao | aberta — login/registro/refresh do painel |
-| `GET /{proxy+}` | aplicacao | aberta — `/health` e Swagger |
-| `ANY /api/v1/{proxy+}` | aplicacao | **authorizer Lambda** |
+| `POST /auth` | λ auth-issuer | aberta: o CPF vira JWT (limite de 10 req/s, burst 20) |
+| `POST /api/v1/auth/{proxy+}` | os-service | aberta: login e refresh da equipe |
+| `GET /health` | os-service | aberta |
+| `ANY /api/v1/service-orders`, `requesters`, `vehicles`, `services`, `parts` (e `/{proxy+}`) | os-service | authorizer |
+| `ANY /api/v1/budgets/{proxy+}`, `ANY /api/v1/payments/{proxy+}` | billing-service | authorizer |
+| `POST /api/v1/webhooks/mercadopago` | billing-service | aberta: autenticidade pela assinatura `x-signature` |
+| `GET /fake-checkout/{proxy+}` | billing-service | aberta: página do gateway de pagamento fake (demo) |
+| `ANY /api/v1/executions/{proxy+}` | execution-service | authorizer |
 
-A rota mais especifica vence, entao `ANY /api/v1/{proxy+}` protege tudo sob `/api/v1` exceto o grupo de auth declarado acima. As consultas de ordem de servico do cliente, que na Fase 2 eram publicas, passam a exigir o JWT emitido a partir do CPF.
+- `/internal/*` **não tem rota**: só é alcançável dentro do cluster ou pelo NLB, com `X-Internal-Token`.
+- Rota protegida só é criada quando o authorizer existe; rota protegida sem authorizer seria rota aberta.
+- O caminho original vai inteiro para o serviço (`overwrite:path`).
+- Os serviços validam o JWT de novo e checam papel e posse (o cliente só aprova o próprio orçamento): o gateway é a primeira camada, não a única.
 
-O authorizer roda com TTL de cache zero: o veredito e recalculado a cada requisicao, para que a desativacao de um cliente tenha efeito imediato.
+## Deploy
 
-As cinco variaveis `lambda_issuer_invoke_arn`, `lambda_issuer_function_name`, `lambda_authorizer_invoke_arn`, `lambda_authorizer_function_name` e `app_backend_url` sao opcionais. Vazias, o gateway sobe sem as rotas correspondentes — o que permite aplicar a infraestrutura antes da Lambda e da aplicacao existirem.
+### Primeira vez
 
-### Ordem de aplicação entre repositórios
-
-Essa opcionalidade existe para quebrar uma dependência circular: o gateway precisa da Lambda, a Lambda precisa do banco, e o gateway precisa do NLB que só nasce com o deploy da aplicação.
+1. Kauã configura os repositórios: `scripts/setup-github.sh vars`, `app`, `newrelic`, `smtp`, `aws`, `state` e por fim `enable` (detalhes no próprio script). A cada nova sessão do Learner Lab, só `aws`.
+2. A ordem entre repositórios resolve as dependências de rede e de nome:
 
 ```mermaid
 flowchart LR
-    n1["1 · infra-database<br/>apply"] --> n2["2 · infra-k8s<br/>apply <b>sem</b> as variáveis"]
-    n2 --> n3["3 · lambda-auth<br/>apply → imprime os invoke_arn"]
-    n2 --> n4["4 · app<br/>deploy → cria o NLB"]
-    n3 --> n5["5 · infra-k8s<br/>apply <b>com</b> as variáveis"]
-    n4 --> n5
-
-    style n5 fill:#e6f4ea,stroke:#4a7
+    a["1 · infra-k8s<br/>cluster, filas, gateway vazio"] --> b["2 · os, billing, execution<br/>banco + imagem + deploy"]
+    b --> c["3 · lambda-auth<br/>acha o NLB do os-service"]
+    a --> d["3 · notification-lambda<br/>lê notification-os-events"]
+    c --> e["4 · infra-k8s de novo<br/>liga Lambdas e NLBs às rotas"]
+    b --> e
+    style e fill:#e6f4ea,stroke:#4a7
 ```
 
-Os valores dos passos 3 e 4 são copiados à mão para `envs/*.tfvars` — os states são separados por repositório, então não há referência automática entre eles. O resumo do job do `lambda-auth` já imprime as quatro linhas prontas para colar.
+Nenhum ARN ou DNS é copiado à mão: cada passo encontra o anterior por nome ou por tag.
 
-## Exposicao da aplicacao
-
-O `Service` da aplicacao e do tipo `LoadBalancer` e provisiona um NLB publico, que o gateway consome por integracao `HTTP_PROXY`. Isso mantem o NLB alcancavel diretamente, contornando o gateway.
-
-A protecao nao depende disso: o middleware `Auth` da aplicacao valida o mesmo JWT HS256 que o authorizer valida. O gateway e a primeira camada, a aplicacao e a segunda. Fechar o NLB exigiria VPC Link com NLB interno, registrado como alternativa no ADR de comunicacao.
-
-## Deploy ativo
-
-| O quê | Onde |
-|---|---|
-| API Gateway (entrada pública) | https://tkh5cum8g8.execute-api.us-east-1.amazonaws.com |
-| Swagger UI, pelo gateway | https://tkh5cum8g8.execute-api.us-east-1.amazonaws.com/swagger/index.html |
-| Collection Postman | [`postman_collection.json`](https://github.com/Kc1t/postech-tc3-app/blob/main/postman_collection.json) no repositório da aplicação |
-| Cluster | `postech-tc3-prod` — EKS 1.35, 2 nós `t3.medium` (máximo 5), namespaces `postech` e `postech-homolog` |
-| Dashboard New Relic | links na seção *Deploy ativo* do [README da aplicação](https://github.com/Kc1t/postech-tc3-app#deploy-ativo) |
-
-O cluster e o gateway de produção foram criados na primeira validação no Learner Lab e importados para o state do Terraform (`terraform import`, chave `k8s/prod.tfstate`). Desde então quem os altera é o pipeline, no push da `main`.
-
-## Execução local
-
-```bash
-terraform init \
-  -backend-config="bucket=<seu-bucket-de-state>" \
-  -backend-config="key=k8s/staging.tfstate" \
-  -backend-config="region=us-east-1"
-
-terraform plan  -var-file=envs/staging.tfvars
-terraform apply -var-file=envs/staging.tfvars
-
-aws eks update-kubeconfig --region us-east-1 --name postech-tc3-staging
-```
-
-O `lambda_authorizer_invoke_arn` é opcional: sem ele o authorizer não é criado, o que permite subir o gateway antes da lambda existir.
-
-## Deploy
+### Pipeline deste repositório
 
 | Evento | Ação |
 |---|---|
 | Pull Request | `fmt`, `validate`, `tfsec` e `plan` contra o state de produção |
-| Push em `homolog` | `fmt`, `validate`, `tfsec` e `plan` automático contra o state de produção, sem apply — o cluster é único, com um namespace por ambiente ([ADR-0010](https://github.com/Kc1t/postech-tc3-app/blob/main/docs/adr/0010-cluster-unico-dois-namespaces.md)) |
-| Push em `main` | `apply` em produção e instalação do `nri-bundle` |
+| Push em `homolog` | o mesmo `plan`, sem `apply` (cluster único) |
+| Push em `main` ou `workflow_dispatch` | `apply`, namespace e quota, `nri-bundle` do New Relic e resumo com endpoint, rotas e filas |
 
-Secrets necessários: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `TF_STATE_BUCKET` e, para o agente do New Relic, `NEW_RELIC_LICENSE_KEY`.
+Os jobs com AWS só rodam com a variável `AWS_DEPLOY_ENABLED=true`: as credenciais do Learner Lab expiram a cada sessão, e sem elas o push não deve ficar vermelho.
 
-O Learner Lab bloqueia `iam:GetRole` na role da sessão e a criação de roles IAM e chaves KMS. Por isso o `eks.tf` usa `aws_eks_cluster` e `aws_eks_node_group` direto, em vez do módulo `terraform-aws-modules/eks`, e deixa de fora a AZ `use1-az3`, onde o EKS não aceita control plane.
+O Learner Lab não permite criar roles IAM nem chaves KMS. Por isso o cluster usa `LabEksClusterRole` e `LabRole`, os pods herdam a `LabRole` pelo IMDS (hop limit 2 no launch template, [ADR-0016](https://github.com/Kc1t/postech-tc4-os-service/blob/main/docs/adr/)) e a criptografia usa chaves gerenciadas pela AWS. A AZ `use1-az3` fica de fora porque o EKS não aceita control plane nela.
 
-## Escalabilidade
+## Execução local
 
-São dois níveis independentes e complementares:
+Ponta a ponta, sem AWS: `cd local && make all` sobe os três serviços, cada um com o próprio banco, as Lambdas issuer e notifier no LocalStack e o Mailpit, e roda o caminho feliz da saga mais três compensações. Detalhes em [`local/README.md`](local/README.md).
 
-```mermaid
-flowchart TB
-    carga(["Aumento de tráfego"]) --> cpu["CPU dos pods sobe"]
-    cpu --> ms["metrics-server coleta"]
-    ms --> hpa{"HPA<br/>passou de 70%?"}
-    hpa -->|sim| mais["mais réplicas<br/>até 10"]
-    mais --> cabe{"há nó com espaço?"}
-    cabe -->|sim| ok(["pods rodando"])
-    cabe -->|não| pend(["pods em Pending<br/>até alguém aumentar o desired_size"])
+Terraform contra uma conta:
 
-    style pend fill:#ffe0b2,stroke:#e80
+```bash
+terraform init -backend-config="bucket=<bucket-do-state>" -backend-config="key=k8s/prod.tfstate" -backend-config="region=us-east-1"
+terraform plan -var-file=envs/prod.tfvars
+aws eks update-kubeconfig --region us-east-1 --name postech-tc4-prod
 ```
 
-- **Nós:** managed node group com 2 nós em produção, limitado a `node_min`..`node_max` (2 a 5). **Não há Cluster Autoscaler**: o número de nós só muda com `aws eks update-nodegroup-config`, porque o Terraform ignora o `desired_size` depois de criado.
-- **Pods:** HPA declarado nos manifests do `postech-tc3-app`, 2 a 10 réplicas por CPU e memória.
-- O addon **metrics-server** é provisionado aqui. Sem ele o HPA fica em `<unknown>` e nunca escala — falha silenciosa, não erro.
+## Escalabilidade e limites
 
-Escalar pods só resolve enquanto houver capacidade de nó. Quando os nós instalados lotam, o HPA continua pedindo réplicas e elas ficam em `Pending`. Detalhamento no [ADR-0008](https://github.com/Kc1t/postech-tc3-app/blob/main/docs/adr/0008-hpa.md).
+- **Pods:** cada serviço tem HPA de 2 a 6 réplicas (CPU 70%, memória 80%), PodDisruptionBudget e rolling update sem indisponibilidade (manifests em `k8s/` de cada serviço).
+- **Namespace:** `ResourceQuota` de 4 vCPU e 4 GiB de requests, 30 pods, e `LimitRange` com padrão por container, para um serviço com vazamento não derrubar os outros.
+- **Nós:** 3 `t3.medium` (mínimo 2, máximo 5). Não há Cluster Autoscaler: o Terraform ignora o `desired_size` depois de criado e a mudança é por `aws eks update-nodegroup-config`.
+- **Filas:** o consumo escala com as réplicas (cada pod faz long polling); a Lambda de notificação tem concorrência máxima de 5 no event source mapping.
 
 ## Custo
 
 | Item | US$/hora | US$/mês 24/7 |
 |---|---|---|
 | Control plane do EKS | 0,100 | 73,00 |
-| 2× `t3.medium` | 0,083 | 60,74 |
-| EBS 20 GiB × 2 | — | 3,20 |
-| API Gateway HTTP | US$ 1,00 por milhão de requisições | ~0 |
-| **Total** | **~0,19** | **~137** |
+| 3× `t3.medium` | 0,125 | 91,10 |
+| 3 NLBs | 0,068 | 49,30 |
+| 2× RDS `db.t3.micro` single-AZ | 0,034 | 24,80 |
+| SNS, SQS, DynamoDB sob demanda, API Gateway, Lambdas | — | centavos no volume da demo |
+| **Total** | **~0,33** | **~238** |
 
-Este repositório concentra o custo do projeto. Duas medidas de contenção:
-
-- **`terraform destroy` ao fim de cada sessão.** O control plane cobra por hora mesmo sem nenhum pod rodando.
-- **Versão do cluster em suporte padrão.** A 1.31 estava em *extended support*, cobrada a US$ 0,60/hora — seis vezes mais. A 1.35 tem suporte padrão até 27/03/2027. Nunca deixar cair em extended.
+`terraform destroy` ao fim de cada sessão do lab: o control plane e os NLBs cobram por hora mesmo sem tráfego.
 
 ## Observabilidade
 
-Após o `apply`, o pipeline instala o `nri-bundle` do New Relic via Helm, com infraestrutura, eventos do Kubernetes, `kube-state-metrics`, coleta de logs e agente Prometheus.
-
-Secret necessário: `NEW_RELIC_LICENSE_KEY`. Sem ele o passo é pulado e o `apply` segue normalmente.
+- No cluster: o pipeline instala o `nri-bundle` (infraestrutura, eventos do Kubernetes, `kube-state-metrics`, logs dos pods e Prometheus) quando `NEW_RELIC_LICENSE_KEY` existe.
+- Dashboards, alertas com runbook, SLOs e o workload "Ordem de Serviço" ficam em [`observability/`](observability/), aplicados por um workflow próprio.
+- Os alarmes de DLQ ficam no CloudWatch (`messaging.tf`), porque o Learner Lab não permite a integração da conta AWS com o New Relic. Runbook: [`docs/runbooks/dlq.md`](docs/runbooks/dlq.md).
