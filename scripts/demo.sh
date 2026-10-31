@@ -99,7 +99,7 @@ pay() { # os approved|rejected
 }
 
 show_details() {
-  req GET "$API/service-orders/$1/details" "$ADMIN" | jq '{status, partial, saga: {state: .saga.state, motivo: .saga.failure_reason},
+  req GET "$API/service-orders/$1/details" "$ADMIN" | jq '{status: .service_order.status, partial, saga: {state: .saga.state, motivo: .saga.failure_reason},
     orcamento: .budget.status, pagamento: .budget.payment.status, execucao: .execution.status,
     historico: [.history[] | "\(.from // "-") → \(.to)"]}'
 }
