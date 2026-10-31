@@ -50,7 +50,7 @@ Aplique **depois do primeiro deploy dos serviços**: o SLO de um serviço precis
 | `Span` com `saga_id` | atributos da transação de consumo e de relay, copiados para o span raiz | spans por saga |
 | `Log` `saga_*` (`saga_state`, `os_status`, `reason`) | orquestrador da saga no os-service (`sagauc`) | página Saga, alertas de compensação e expiração, SLO de negócio |
 | `Log` `message_failed` (`consumer`, `receive_count`), `message_malformed`, `outbox_publish_failed` | consumidor e relay dos três serviços | proxy da DLQ, malformadas, falhas do relay |
-| `Log` dos pods | stdout JSON coletado pelo `newrelic-logging` do nri-bundle; o `msg` vira `message` e os campos viram atributos (`container_name` identifica o serviço) | todos os widgets de log |
+| `Log` dos pods | stdout JSON coletado pelo `newrelic-logging` do nri-bundle; o texto sai na chave `message` (os loggers trocam o `msg` padrão do slog, para não depender de remapeamento na ingestão) e os outros campos viram atributos (`container_name` identifica o serviço) | todos os widgets de log |
 | `Transaction` das Lambdas (`aws.lambda.arn`, `aws.lambda.coldStart`, `auth.outcome`) | `nrlambda` + extension com `NEW_RELIC_APM_LAMBDA_MODE=true` | página Lambdas, alertas das Lambdas |
 | `NotificationSent` (`status`, `serviceOrderCode`, `messageId`) | custom event da Lambda de notificação | e-mails enviados |
 | `K8sDeploymentSample`, `K8sContainerSample` | nri-bundle no cluster | pods, CPU e memória |

@@ -1,6 +1,7 @@
 # Pedaços de NRQL usados no dashboard, nos alertas e nos SLOs. Os nomes de atributo vêm do código:
 # Transaction e Span do agente Go (nrgin, Consume/<tipo>, OutboxRelay/<tipo>), Log dos JSON do
-# slog (o msg vira message) e NotificationSent da Lambda de notificação.
+# slog (os loggers gravam o texto em "message", não no "msg" padrão) e NotificationSent da Lambda
+# de notificação.
 locals {
   name = "Ordem de Serviço (${var.environment})"
 
@@ -33,7 +34,8 @@ locals {
   lambda_facet   = "cases(${join(", ", [for k, w in local.lambda_where : "WHERE ${w} AS '${k}'"])})"
   lambda_names   = join(", ", [for fn in values(var.lambdas) : "'${fn}'"])
 
-  # Logs da Lambda chegam pela extension; o filtro aceita o msg tanto em message quanto em msg.
+  # Logs da Lambda chegam pela extension. O notifier grava o texto em "message"; o filtro aceita
+  # também "msg", para logs de versões anteriores.
   notifier_failures = "('notification_send_failed', 'notification_dedup_failed', 'notification_render_failed')"
 
   # Fim da saga: um saga_completed (reparo concluído) ou um saga_compensated (qualquer compensação,
