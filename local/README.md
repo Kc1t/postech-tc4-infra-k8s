@@ -31,6 +31,7 @@ flowchart LR
 | execution-service | 8083 | fila do mecânico, DynamoDB `executions` |
 | LocalStack | 4566 | SNS, SQS (com DLQ, maxReceiveCount 5), DynamoDB e Lambda; topologia em [`localstack/init-aws.sh`](localstack/init-aws.sh), igual à do Terraform |
 | Mailpit | 8026 | caixa de entrada dos e-mails da Lambda de notificação |
+| Gateway local (opcional) | 8090 | nginx com as rotas do API Gateway, para o `demo.sh` (`make demo`) |
 
 ## Como rodar
 
@@ -39,6 +40,8 @@ make up        # build das imagens a partir dos repositórios vizinhos e subida 
 make lambdas   # build linux/arm64 do issuer e do notifier e publicação no LocalStack
 make e2e       # os quatro cenários abaixo
 ```
+
+Para a demonstração do vídeo sem AWS, `make demo` (depois de `up` e `lambdas`) sobe um nginx na porta 8090 com as mesmas rotas do API Gateway, com `POST /auth` ligado à Lambda issuer por uma function URL e `/internal` sem rota, e roda o [`../scripts/demo.sh`](../scripts/demo.sh) inteiro contra ele. O gateway local não emula o Lambda authorizer: quem barra requisição sem token são os próprios serviços, que na AWS validam o JWT de novo depois do authorizer.
 
 `make contracts` (primeiro passo do `make all`) confere, por sha256, que o `pkg/contracts` (structs e JSON Schemas das mensagens) é idêntico no os-service, billing-service, execution-service e na Lambda de notificação; se uma cópia divergir, lista os arquivos e falha.
 
