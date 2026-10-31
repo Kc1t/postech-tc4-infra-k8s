@@ -5,3 +5,4 @@
 !envs/*.tfvars
 crash.log
 kubeconfig*
+local/.gateway.conf
