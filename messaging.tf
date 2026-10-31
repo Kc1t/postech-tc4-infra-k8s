@@ -120,8 +120,9 @@ resource "aws_sns_topic_subscription" "this" {
   depends_on = [aws_sqs_queue_policy.this]
 }
 
-# Mensagem na DLQ = saga travada ou notificação perdida. O alarme aparece no CloudWatch e
-# o New Relic alerta pela mesma métrica (observability.tf).
+# Mensagem na DLQ = saga travada ou notificação perdida. O alarme fica no CloudWatch: o Learner
+# Lab não permite integrar a conta AWS ao New Relic, então lá o alerta equivalente usa o log
+# message_failed na entrega de número max_receive_count (condição "dlq" em observability/alerts.tf).
 resource "aws_cloudwatch_metric_alarm" "dlq" {
   for_each = local.queues
 

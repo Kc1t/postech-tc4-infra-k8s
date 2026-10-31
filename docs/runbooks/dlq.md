@@ -1,6 +1,7 @@
 # Runbook: mensagem na DLQ
 
-**Alarme:** `postech-tc4-prod-dlq-<fila>` no CloudWatch, que o New Relic replica pela mesma métrica (`ApproximateNumberOfMessagesVisible` > 0 na `<fila>-dlq`).
+**Alarme:** `postech-tc4-prod-dlq-<fila>` no CloudWatch (`ApproximateNumberOfMessagesVisible` > 0 na `<fila>-dlq`).
+**No New Relic:** `mensageria: mensagem falhou na última entrega antes da DLQ (receive_count >= 5)`, um incidente por fila. O Learner Lab não permite a integração do CloudWatch com o New Relic, então o sinal é o log `message_failed` do consumidor na entrega de número `max_receive_count`: a próxima recepção move a mensagem para a DLQ. A fila da notificação só tem o alarme do CloudWatch, porque a Lambda não registra `receive_count`.
 **Severidade:** alta quando a fila é da saga, média quando é a de notificação.
 
 Uma mensagem só chega à DLQ depois de falhar `max_receive_count` vezes (5 por padrão) na fila de origem. Isso nunca é um erro passageiro: a mensagem não foi processada e algo precisa de correção.
@@ -31,7 +32,7 @@ Uma mensagem só chega à DLQ depois de falhar `max_receive_count` vezes (5 por 
 2. **Achar o erro no New Relic** pelos logs em contexto, com o `message_id` ou o `saga_id` da mensagem:
 
    ```sql
-   SELECT timestamp, service.name, message, error, receive_count
+   SELECT timestamp, container_name, consumer, message, error, receive_count
    FROM Log
    WHERE message_id = '<message_id>' OR saga_id = '<saga_id>'
    SINCE 1 day ago
