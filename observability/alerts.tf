@@ -92,7 +92,7 @@ locals {
 
       "notifier-envio" = {
         name        = "lambda notifier: falhas de envio de e-mail acima de 4 em 5 min"
-        description = "Logs notification_send_failed, notification_dedup_failed e notification_render_failed. A Lambda devolve a mensagem para a fila sem marcar erro na invocação, por isso o sinal é o log."
+        description = "Logs notification_send_failed, notification_dedup_failed e notification_render_failed. Conta as falhas pelo log, separando envio, dedup e template; a mesma falha também marca erro na invocação (NoticeError) e entra na taxa de erro da function."
         runbook     = local.runbook["lambda-erros"]
         query       = "SELECT count(*) FROM Log WHERE message IN ${local.notifier_failures} OR msg IN ${local.notifier_failures}"
         window      = 300

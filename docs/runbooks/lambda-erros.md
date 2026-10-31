@@ -2,7 +2,7 @@
 
 **Alertas:**
 - `lambda <issuer|authorizer|notifier>: taxa de erro acima de 5% em 5 min`: invocações com `error = true` (NoticeError ou erro devolvido ao runtime).
-- `lambda notifier: falhas de envio de e-mail acima de 4 em 5 min`: logs `notification_send_failed`, `notification_dedup_failed` e `notification_render_failed`. A Lambda de notificação devolve a mensagem que falhou para a fila (`ReportBatchItemFailures`) sem marcar erro na invocação, então o sinal dela é o log.
+- `lambda notifier: falhas de envio de e-mail acima de 4 em 5 min`: logs `notification_send_failed`, `notification_dedup_failed` e `notification_render_failed`. A Lambda de notificação devolve a mensagem que falhou para a fila (`ReportBatchItemFailures`) e marca erro na invocação (`NoticeError`), então a falha aparece também na taxa de erro e no Errors Inbox; os logs levam o `trace.id` do os-service.
 
 **Severidade:** alta no authorizer (todas as rotas protegidas param) e no issuer (o cliente não consegue token); média no notifier (a OS segue, o e-mail atrasa ou se perde na DLQ).
 
