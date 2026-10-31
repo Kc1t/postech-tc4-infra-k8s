@@ -40,6 +40,8 @@ make lambdas   # build linux/arm64 do issuer e do notifier e publicação no Loc
 make e2e       # os quatro cenários abaixo
 ```
 
+`make contracts` (primeiro passo do `make all`) confere, por sha256, que o `pkg/contracts` (structs e JSON Schemas das mensagens) é idêntico no os-service, billing-service, execution-service e na Lambda de notificação; se uma cópia divergir, lista os arquivos e falha.
+
 Requisitos: Docker, Go, `jq` e os repositórios `postech-tc4-os-service`, `-billing-service`, `-execution-service`, `-lambda-auth` e `-notification-lambda` na mesma pasta que `postech-tc4-infra-k8s`.
 
 ## O que o `e2e.sh` verifica
