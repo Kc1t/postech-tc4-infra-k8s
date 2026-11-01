@@ -1,7 +1,7 @@
 # Runbook: mensagem na DLQ
 
 **Alarme:** `postech-tc4-prod-dlq-<fila>` no CloudWatch (`ApproximateNumberOfMessagesVisible` > 0 na `<fila>-dlq`).
-**No New Relic:** `mensageria: mensagem falhou na última entrega antes da DLQ (receive_count >= 5)`, um incidente por fila. O Learner Lab não permite a integração do CloudWatch com o New Relic, então o sinal é o log `message_failed` do consumidor na entrega de número `max_receive_count`: a próxima recepção move a mensagem para a DLQ. A fila da notificação só tem o alarme do CloudWatch, porque a Lambda não registra `receive_count`.
+**No New Relic:** `mensageria: mensagem falhou na última entrega antes da DLQ (receive_count >= 5)`, um incidente por fila. O Learner Lab não permite a integração do CloudWatch com o New Relic, então o sinal é o log `message_failed` do consumidor na entrega de número `max_receive_count`: a próxima recepção move a mensagem para a DLQ. A fila da notificação não gera esse log, porque a Lambda não registra `receive_count`: ela é coberta pelos alertas do notifier (`lambda notifier: falhas de envio de e-mail acima de 4 em 5 min` e a taxa de erro da function), pelo de mensagem malformada (`notification_invalid_*`) e pelo alarme do CloudWatch.
 **Severidade:** alta quando a fila é da saga, média quando é a de notificação.
 
 Uma mensagem só chega à DLQ depois de falhar `max_receive_count` vezes (5 por padrão) na fila de origem. Isso nunca é um erro passageiro: a mensagem não foi processada e algo precisa de correção.
@@ -42,7 +42,7 @@ Uma mensagem só chega à DLQ depois de falhar `max_receive_count` vezes (5 por 
    |---|---|---|
    | `message_malformed` | O corpo não segue o contrato (`pkg/contracts`), porque o produtor e o consumidor estão em versões diferentes do schema. | Publicar o consumidor compatível com a versão que o produtor manda e depois fazer o redrive. Se o corpo estiver corrompido de fato, siga o passo 4. |
    | `message_failed` + erro de banco ou de rede | Banco fora, credencial expirada no Secrets Manager, SG. | Corrigir a infraestrutura e depois fazer o redrive. |
-   | `message_failed` + erro de regra (`invalid transition`, `not found`) | O estado do agregado não aceita o evento, porque ele chegou fora de ordem ou a OS foi cancelada antes. | Conferir a timeline da OS (`GET /api/v1/service-orders/{id}/details`). Se a saga já terminou, a mensagem pode ser descartada. |
+   | `message_failed` (no os-service, também `saga_reply_failed`) com erro de estado (`invalid transition`, `not found`) | Raro: billing e execution transformam regra violada em evento de falha ou ignoram com `command_ignored`, e o orquestrador ignora resposta fora de etapa (`saga_reply_ignored`). Quando aparece, o estado diverge entre os serviços ou há bug. | Conferir a timeline da OS (`GET /api/v1/service-orders/{id}/details`). Se a saga já terminou, a mensagem pode ser descartada. |
    | `notification_send_failed` | SMTP (Brevo) recusou ou excedeu a cota. | Conferir as credenciais SMTP da Lambda e a cota do Brevo, depois fazer o redrive. |
 
 3. **Ver o trace distribuído:** a transação `Consume/<type>` do consumidor carrega o trace do produtor (os headers W3C viajam nos atributos da mensagem). No New Relic, o filtro `message_id = <id>` em *Distributed tracing* mostra a requisição que originou o comando.
