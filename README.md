@@ -28,7 +28,7 @@ Cada serviço provisiona o próprio banco (banco por serviço, [ADR-0012](https:
 | Pipelines de CI/CD | `.github/workflows/ci.yml` de cada repositório e os [pipelines deste](#pipelines-deste-repositório) |
 | Evidência de cobertura | [Cobertura dos repositórios](#cobertura-dos-repositórios) |
 | Swagger | `docs/swagger.yaml` no os-service, no billing e no execution, servido em `/swagger/index.html` por cada serviço. As Lambdas não servem HTTP próprio; o contrato do `POST /auth` e do authorizer está no [README da lambda-auth](https://github.com/Kc1t/postech-tc4-lambda-auth/blob/main/README.md) |
-| Postman | `postman_collection.json` no os-service, no billing e no execution; a do os-service também chama o `POST /auth` pelo gateway |
+| Postman | `postman_collection.json` no os-service, no billing e no execution, com teste em toda requisição; [`make postman`](local/README.md#collections-postman-make-postman) roda as três encadeadas no fluxo da OS com newman (231 requisições, 512 asserções, 0 falhas) |
 | Infraestrutura como código | este repositório (cluster, gateway, mensageria, observabilidade) e o `infra/` de cada repositório (banco, tabela e Lambdas) |
 | Observabilidade e resposta a incidente | [`observability/`](observability/README.md) e [`docs/runbooks/`](docs/runbooks/) |
 | Teste ponta a ponta | [`local/`](local/README.md): caminho feliz e três compensações, sem AWS |
