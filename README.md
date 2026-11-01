@@ -2,7 +2,7 @@
 
 Plataforma compartilhada do sistema de gestão de oficinas mecânicas, dividido em microsserviços: **cluster EKS**, **API Gateway**, **mensageria da saga (SNS + SQS + DLQ)**, **observabilidade no New Relic como código** e o **ambiente ponta a ponta local** com os três serviços e as Lambdas. É também a porta de entrada do projeto: o [guia rápido](#guia-rápido-para-avaliação) abaixo aponta onde está cada entregável nos seis repositórios.
 
-Tech Challenge Fase 4, FIAP Pós Tech SOAT. Grupo 112 (Reservoir Devs): Kauã Miguel da Cunha, Pedro Henrique Carlini de Oliveira Ribeiro, Yuri Lopes Padlipskas e Diego Oliveira Andrade Rafael. Terraform 1.9, GitHub Actions, Helm e New Relic.
+Tech Challenge Fase 4, FIAP Pós Tech SOAT. Grupo Reservoir Devs: Kauã Miguel da Cunha, Pedro Henrique Carlini de Oliveira Ribeiro, Yuri Lopes Padlipskas e Diego Oliveira Andrade Rafael. Terraform 1.9, GitHub Actions, Helm e New Relic.
 
 | Repositório | Papel | Banco |
 |---|---|---|
