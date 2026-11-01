@@ -1,6 +1,6 @@
 # Integração ponta a ponta (local)
 
-Sobe a plataforma inteira na máquina, com o mesmo desenho do EKS: os três microsserviços reais, **cada um com o próprio banco**, conversando só por SNS/SQS e pela API composition. As duas Lambdas reais rodam dentro do LocalStack.
+Sobe a plataforma inteira na máquina, com o mesmo desenho do EKS: os três microsserviços reais, **cada um com o próprio banco**, conversando só por SNS/SQS e pela API composition. As Lambdas `auth-issuer` e `notifier` (o código real dos repositórios) rodam dentro do LocalStack; o authorizer não é publicado, porque não há API Gateway local.
 
 ```mermaid
 flowchart LR
@@ -33,6 +33,8 @@ flowchart LR
 | Mailpit | 8026 | caixa de entrada dos e-mails da Lambda de notificação |
 | Gateway local (opcional) | 8090 | nginx com as rotas do API Gateway, para o `demo.sh` (`make demo`) |
 
+As portas do host mudam por variável de ambiente, se alguma já estiver ocupada: `OS_SERVICE_PORT`, `BILLING_SERVICE_PORT`, `EXECUTION_SERVICE_PORT`, `OS_POSTGRES_PORT`, `BILLING_POSTGRES_PORT`, `LOCALSTACK_PORT`, `MAILPIT_UI_PORT` e `GATEWAY_PORT`.
+
 ## Como rodar
 
 ```bash
@@ -41,7 +43,11 @@ make lambdas   # build linux/arm64 do issuer e do notifier e publicação no Loc
 make e2e       # os quatro cenários abaixo
 ```
 
-Para a demonstração do vídeo sem AWS, `make demo` (depois de `up` e `lambdas`) sobe um nginx na porta 8090 com as mesmas rotas do API Gateway, com `POST /auth` ligado à Lambda issuer por uma function URL e `/internal` sem rota, e roda o [`../scripts/demo.sh`](../scripts/demo.sh) inteiro contra ele. O gateway local não emula o Lambda authorizer: quem barra requisição sem token são os próprios serviços, que na AWS validam o JWT de novo depois do authorizer.
+`make all` faz `contracts`, `up`, `lambdas` e `e2e` em sequência. `make logs` acompanha os logs dos três serviços, `make down` derruba tudo (inclusive o gateway) e `make clean` também apaga os volumes e as imagens locais.
+
+O os-service sobe com o admin padrão de desenvolvimento, `admin@workshop.com` / `admin123`, criado no bootstrap quando `ADMIN_EMAIL` e `ADMIN_PASSWORD` não estão definidos (em `APP_ENV=prod` esse padrão não existe). Os e-mails chegam em `http://localhost:8026`.
+
+Para a demonstração do vídeo sem AWS, `make demo` (depois de `up` e `lambdas`) sobe um nginx na porta 8090 com as mesmas rotas do API Gateway, com `POST /auth` ligado à Lambda issuer por uma function URL e `/internal` sem rota, e roda o [`../scripts/demo.sh`](../scripts/demo.sh) no modo `tudo` contra ele: caminho feliz, pagamento recusado e reparo recusado depois do pagamento. O gateway local não emula o Lambda authorizer: quem barra requisição sem token são os próprios serviços, que na AWS validam o JWT de novo depois do authorizer.
 
 `make contracts` (primeiro passo do `make all`) confere, por sha256, que o `pkg/contracts` (structs e JSON Schemas das mensagens) é idêntico no os-service, billing-service, execution-service e na Lambda de notificação; se uma cópia divergir, lista os arquivos e falha.
 
