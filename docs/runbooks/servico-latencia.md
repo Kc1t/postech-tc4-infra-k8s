@@ -19,8 +19,9 @@ FACET name SINCE 30 minutes ago
 
 - `External/billing-service/...` ou `External/execution-service/...` no os-service: a composição do `/details` espera os outros serviços (timeout `UPSTREAM_TIMEOUT` de 2 s).
 - `External/api.mercadopago.com/...` no billing: o provedor está lento (timeout `MP_TIMEOUT` de 5 s).
+- `Datastore/statement/Postgres/<tabela>/<operação>` no os-service e no billing: consultas ao RDS, instrumentadas pelo `nrpgx5` no driver pgx. Uma consulta dominante aponta índice faltando ou N+1; confirme no RDS (*Performance Insights* ou `pg_stat_activity`).
 - `Datastore/.../DynamoDB/...` no execution: consultas à tabela `executions` (instrumentadas pelo `nrawssdk-v2`).
-- Se nenhum span de cliente explica o tempo, ele está no Postgres: o agente não instrumenta o GORM, então o banco aparece como tempo da própria transação. Confirme no RDS (*Performance Insights* ou `pg_stat_activity`).
+- Se nenhum span de cliente explica o tempo, ele está no próprio processo: CPU no limite (passo 2) ou espera por conexão livre no pool do banco.
 
 Um trace de exemplo: APM → serviço → *Distributed tracing*, filtro `duration > 1`.
 
@@ -32,7 +33,7 @@ Um trace de exemplo: APM → serviço → *Distributed tracing*, filtro `duratio
 | Pods prontos abaixo do desejado | Pods reiniciando ou sem nó | `kubectl -n postech get pods -o wide`; com nós cheios, `aws eks update-nodegroup-config` (até 5 nós). |
 | Só o billing, em `External/api.mercadopago.com` | Lentidão do Mercado Pago | Nada a fazer no código; se persistir, o `circuit_breaker_state_changed` abre e o pagamento falha rápido. Avisar no incidente. |
 | Só o os-service, no `/details` | billing ou execution lentos | Seguir este runbook no serviço lento. |
-| Lentidão começou com um deploy | Regressão (consulta nova, N+1) | `kubectl -n postech rollout undo deploy/<serviço>`. |
+| Lentidão começou com um deploy | Regressão (consulta nova, N+1: muitos spans `Datastore/statement/Postgres/...` por transação) | `kubectl -n postech rollout undo deploy/<serviço>`. |
 
 ## 3. Encerramento
 
