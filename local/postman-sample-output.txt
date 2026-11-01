@@ -1,0 +1,1400 @@
+./postman.sh
+
+▶ 1. os-service: autenticação, cadastros, token do cliente e abertura das OS
+newman
+
+postech-tc4 · os-service
+
+❏ 0. Health
+↳ Health (gera os dados desta execução)
+  GET http://os-service:8080/health [200 OK, 190B, 100ms]
+  ✓  status 200
+  ✓  status ok
+
+↳ Liveness
+  GET http://os-service:8080/health/live [200 OK, 190B, 5ms]
+  ✓  status 200
+  ✓  status ok
+
+↳ Readiness (Postgres)
+  GET http://os-service:8080/health/ready [200 OK, 206B, 11ms]
+  ✓  status 200
+  ✓  Postgres up
+
+❏ 1. Autenticação
+↳ Login da equipe (admin)
+  POST http://os-service:8080/api/v1/auth/login [200 OK, 564B, 370ms]
+  ✓  status 200
+  ✓  access_token e refresh_token
+  ✓  token_type Bearer e expires_in > 0
+
+↳ Login com e-mail inválido (400)
+  POST http://os-service:8080/api/v1/auth/login [400 Bad Request, 321B, 7ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Refresh do token
+  POST http://os-service:8080/api/v1/auth/refresh [200 OK, 564B, 12ms]
+  ✓  status 200
+  ✓  novo refresh token
+
+↳ Refresh com token já rotacionado (401)
+  POST http://os-service:8080/api/v1/auth/refresh [401 Unauthorized, 263B, 5ms]
+  ✓  status 401
+  ✓  error.code = UNAUTHORIZED
+
+↳ Registrar usuário
+  POST http://os-service:8080/api/v1/auth/register [201 Created, 222B, 342ms]
+  ✓  status 201
+  ✓  mensagem de sucesso
+
+↳ Registrar e-mail já usado (409)
+  POST http://os-service:8080/api/v1/auth/register [409 Conflict, 253B, 6ms]
+  ✓  status 409
+  ✓  error.code = ALREADY_EXISTS
+
+↳ Login do usuário registrado
+  POST http://os-service:8080/api/v1/auth/login [200 OK, 581B, 284ms]
+  ✓  status 200
+  ✓  tokens emitidos
+
+↳ Login com senha errada (401)
+  POST http://os-service:8080/api/v1/auth/login [401 Unauthorized, 250B, 326ms]
+  ✓  status 401
+  ✓  error.code = UNAUTHORIZED
+
+↳ Usuário sem papel admin na rota da equipe (403)
+  GET http://os-service:8080/api/v1/requesters [403 Forbidden, 249B, 6ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+↳ Logout (revoga os refresh tokens do usuário)
+  POST http://os-service:8080/api/v1/auth/logout [200 OK, 212B, 12ms]
+  ✓  status 200
+  ✓  mensagem de logout
+
+↳ Refresh depois do logout (401)
+  POST http://os-service:8080/api/v1/auth/refresh [401 Unauthorized, 263B, 12ms]
+  ✓  status 401
+  ✓  error.code = UNAUTHORIZED
+
+↳ Rota da equipe sem token (401)
+  GET http://os-service:8080/api/v1/requesters [401 Unauthorized, 260B, 11ms]
+  ✓  status 401
+  ✓  error.code = UNAUTHORIZED
+
+↳ Token inválido (401)
+  GET http://os-service:8080/api/v1/requesters [401 Unauthorized, 255B, 4ms]
+  ✓  status 401
+  ✓  error.code = UNAUTHORIZED
+
+❏ 2. Cadastros / Clientes
+↳ Criar cliente
+  POST http://os-service:8080/api/v1/requesters [201 Created, 411B, 35ms]
+  ✓  status 201
+  ✓  documento e e-mail gravados
+  ✓  id gerado
+
+↳ CPF já cadastrado (409)
+  POST http://os-service:8080/api/v1/requesters [409 Conflict, 253B, 8ms]
+  ✓  status 409
+  ✓  error.code = ALREADY_EXISTS
+
+↳ CPF inválido (400)
+  POST http://os-service:8080/api/v1/requesters [400 Bad Request, 250B, 5ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Campos obrigatórios ausentes (400)
+  POST http://os-service:8080/api/v1/requesters [400 Bad Request, 540B, 4ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Criar outro cliente
+  POST http://os-service:8080/api/v1/requesters [201 Created, 415B, 10ms]
+  ✓  status 201
+  ✓  documento e e-mail gravados
+  ✓  id gerado
+
+↳ Listar clientes
+  GET http://os-service:8080/api/v1/requesters [200 OK, 2.99kB, 10ms]
+  ✓  status 200
+  ✓  lista contém o recurso criado
+
+↳ Buscar por documento
+  GET http://os-service:8080/api/v1/requesters/document/52410396275 [200 OK, 406B, 3ms]
+  ✓  status 200
+  ✓  é o cliente criado
+
+↳ Documento inválido (400)
+  GET http://os-service:8080/api/v1/requesters/document/123 [400 Bad Request, 260B, 7ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Documento não cadastrado (404)
+  GET http://os-service:8080/api/v1/requesters/document/97385031595 [404 Not Found, 244B, 6ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Buscar por id
+  GET http://os-service:8080/api/v1/requesters/eb468a3a-89eb-4425-a3c0-3bc3d2449f41 [200 OK, 406B, 9ms]
+  ✓  status 200
+  ✓  documento do cliente
+
+↳ Id inexistente (404)
+  GET http://os-service:8080/api/v1/requesters/6416392c-4165-44ff-8210-7ff7d0ae8165 [404 Not Found, 244B, 4ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ UUID inválido (400)
+  GET http://os-service:8080/api/v1/requesters/nao-e-uuid [400 Bad Request, 274B, 3ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Atualizar cliente
+  PUT http://os-service:8080/api/v1/requesters/eb468a3a-89eb-4425-a3c0-3bc3d2449f41 [200 OK, 412B, 10ms]
+  ✓  status 200
+  ✓  nome e telefone atualizados
+  ✓  e-mail mantido
+
+↳ E-mail inválido na atualização (400)
+  PUT http://os-service:8080/api/v1/requesters/eb468a3a-89eb-4425-a3c0-3bc3d2449f41 [400 Bad Request, 331B, 4ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+❏ 2. Cadastros / Veículos
+↳ Criar veículo
+  POST http://os-service:8080/api/v1/vehicles [201 Created, 422B, 14ms]
+  ✓  status 201
+  ✓  placa e dono
+
+↳ Criar veículo do outro cliente
+  POST http://os-service:8080/api/v1/vehicles [201 Created, 422B, 6ms]
+  ✓  status 201
+  ✓  placa e dono
+
+↳ Placa já cadastrada (409)
+  POST http://os-service:8080/api/v1/vehicles [409 Conflict, 251B, 16ms]
+  ✓  status 409
+  ✓  error.code = ALREADY_EXISTS
+
+↳ Placa inválida (422)
+  POST http://os-service:8080/api/v1/vehicles [422 Unprocessable Entity, 264B, 3ms]
+  ✓  status 422
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Cliente não cadastrado (404)
+  POST http://os-service:8080/api/v1/vehicles [404 Not Found, 244B, 10ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Listar veículos
+  GET http://os-service:8080/api/v1/vehicles [200 OK, 2.89kB, 10ms]
+  ✓  status 200
+  ✓  lista contém o recurso criado
+
+↳ Buscar veículo
+  GET http://os-service:8080/api/v1/vehicles/cc9f4ce2-8412-4a21-b359-e05e86614c5e [200 OK, 417B, 5ms]
+  ✓  status 200
+  ✓  placa
+
+↳ Veículo com UUID inválido (400)
+  GET http://os-service:8080/api/v1/vehicles/nao-e-uuid [400 Bad Request, 274B, 4ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Atualizar veículo
+  PUT http://os-service:8080/api/v1/vehicles/cc9f4ce2-8412-4a21-b359-e05e86614c5e [200 OK, 426B, 17ms]
+  ✓  status 200
+  ✓  modelo e ano atualizados
+  ✓  placa mantida
+
+↳ Veículos do cliente
+  GET http://os-service:8080/api/v1/requesters/eb468a3a-89eb-4425-a3c0-3bc3d2449f41/vehicles [200 OK, 428B, 6ms]
+  ✓  status 200
+  ✓  só o veículo do cliente
+
+❏ 2. Cadastros / Serviços
+↳ Criar serviço
+  POST http://os-service:8080/api/v1/services [201 Created, 413B, 5ms]
+  ✓  status 201
+  ✓  code e preço
+
+↳ Código de serviço já cadastrado (409)
+  POST http://os-service:8080/api/v1/services [409 Conflict, 251B, 11ms]
+  ✓  status 409
+  ✓  error.code = ALREADY_EXISTS
+
+↳ Preço inválido (400)
+  POST http://os-service:8080/api/v1/services [400 Bad Request, 332B, 5ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Listar serviços
+  GET http://os-service:8080/api/v1/services [200 OK, 1.34kB, 7ms]
+  ✓  status 200
+  ✓  lista contém o recurso criado
+
+↳ Buscar serviço
+  GET http://os-service:8080/api/v1/services/0b174ecd-9919-48b7-b760-fcd88d602af4 [200 OK, 408B, 7ms]
+  ✓  status 200
+  ✓  code do serviço
+
+↳ Serviço inexistente (404)
+  GET http://os-service:8080/api/v1/services/cd2b4597-0693-4db5-9c52-393d3d0be843 [404 Not Found, 242B, 8ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Serviço com UUID inválido (400)
+  GET http://os-service:8080/api/v1/services/nao-e-uuid [400 Bad Request, 274B, 3ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Atualizar serviço
+  PUT http://os-service:8080/api/v1/services/0b174ecd-9919-48b7-b760-fcd88d602af4 [200 OK, 408B, 17ms]
+  ✓  status 200
+  ✓  preço 160
+  ✓  nome mantido
+
+❏ 2. Cadastros / Peças e estoque
+↳ Criar peça
+  POST http://os-service:8080/api/v1/parts [201 Created, 425B, 20ms]
+  ✓  status 201
+  ✓  estoque inicial 10
+  ✓  código do fabricante
+
+↳ Código do fabricante já cadastrado (409)
+  POST http://os-service:8080/api/v1/parts [409 Conflict, 243B, 4ms]
+  ✓  status 409
+  ✓  error.code = ALREADY_EXISTS
+
+↳ Estoque negativo (400)
+  POST http://os-service:8080/api/v1/parts [400 Bad Request, 324B, 3ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Listar peças
+  GET http://os-service:8080/api/v1/parts [200 OK, 1.4kB, 9ms]
+  ✓  status 200
+  ✓  lista contém o recurso criado
+
+↳ Buscar peça
+  GET http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405 [200 OK, 420B, 16ms]
+  ✓  status 200
+  ✓  estoque 10
+
+↳ Peça inexistente (404)
+  GET http://os-service:8080/api/v1/parts/f25c1295-fdb9-403f-b6ed-12c8b92de539 [404 Not Found, 239B, 14ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Peça com UUID inválido (400)
+  GET http://os-service:8080/api/v1/parts/nao-e-uuid [400 Bad Request, 274B, 4ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Atualizar peça
+  PUT http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405 [200 OK, 420B, 10ms]
+  ✓  status 200
+  ✓  preço 95 e estoque mantido
+
+↳ Entrada de estoque (+5)
+  PATCH http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405/stock [204 No Content, 116B, 4ms]
+  ✓  status 204
+
+↳ Estoque depois da entrada (15)
+  GET http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405 [200 OK, 420B, 15ms]
+  ✓  status 200
+  ✓  estoque 15
+
+↳ Saída maior que o estoque (422)
+  PATCH http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405/stock [422 Unprocessable Entity, 282B, 4ms]
+  ✓  status 422
+  ✓  error.code = INSUFFICIENT_STOCK
+
+↳ Ajuste sem delta (400)
+  PATCH http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405/stock [400 Bad Request, 330B, 3ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+❏ 3. Token do cliente (gateway)
+↳ Token do cliente por CPF
+  POST http://e2e-gateway/auth [200 OK, 766B, 100ms]
+  ✓  status 200
+  ┌
+  │ `Using "atob" is deprecated. Use "require('atob')" ins
+  │ tead.`
+  └
+  ✓  JWT de cliente com o CPF
+
+↳ Token do outro cliente
+  POST http://e2e-gateway/auth [200 OK, 764B, 65ms]
+  ✓  status 200
+  ┌
+  │ `Using "atob" is deprecated. Use "require('atob')" ins
+  │ tead.`
+  └
+  ✓  JWT de cliente com o CPF
+
+↳ CPF não cadastrado (404)
+  POST http://e2e-gateway/auth [404 NOT FOUND, 418B, 27ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ CPF inválido no issuer (400)
+  POST http://e2e-gateway/auth [400 BAD REQUEST, 417B, 40ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ /internal sem rota pública no gateway (404)
+  GET http://e2e-gateway/internal/requesters/52410396275 [404 Not Found, 308B, 93ms]
+  ✓  status 404
+
+↳ Cliente por CPF na rota interna (usada pelo issuer)
+  GET http://os-service:8080/internal/requesters/52410396275 [200 OK, 326B, 6ms]
+  ✓  status 200
+  ✓  cliente ativo com o CPF
+
+↳ Rota interna sem X-Internal-Token (401)
+  GET http://os-service:8080/internal/requesters/52410396275 [401 Unauthorized, 253B, 7ms]
+  ✓  status 401
+  ✓  error.code = UNAUTHORIZED
+
+❏ 4. Abertura da OS
+↳ Abrir OS (caminho feliz)
+  POST http://os-service:8080/api/v1/service-orders [201 Created, 535B, 40ms]
+  ✓  status 201
+  ✓  OS recebida com código
+  ✓  cliente e veículo da OS
+
+↳ Abrir OS (pagamento recusado)
+  POST http://os-service:8080/api/v1/service-orders [201 Created, 535B, 29ms]
+  ✓  status 201
+  ✓  OS recebida com código
+  ✓  cliente e veículo da OS
+
+↳ Abrir OS (reparo recusado, X-Simulate-Failure: repair)
+  POST http://os-service:8080/api/v1/service-orders [201 Created, 535B, 47ms]
+  ✓  status 201
+  ✓  OS recebida com código
+  ✓  cliente e veículo da OS
+
+↳ Abrir OS (cliente recusa)
+  POST http://os-service:8080/api/v1/service-orders [201 Created, 535B, 18ms]
+  ✓  status 201
+  ✓  OS recebida com código
+  ✓  cliente e veículo da OS
+
+↳ Abrir OS (falha no orçamento, X-Simulate-Failure: budget)
+  POST http://os-service:8080/api/v1/service-orders [201 Created, 535B, 22ms]
+  ✓  status 201
+  ✓  OS recebida com código
+  ✓  cliente e veículo da OS
+
+↳ X-Simulate-Failure inválido (400)
+  POST http://os-service:8080/api/v1/service-orders [400 Bad Request, 299B, 11ms]
+  ✓  status 400
+  ✓  error.code = INVALID_SIMULATE_FAILURE
+
+↳ Veículo de outro cliente (422)
+  POST http://os-service:8080/api/v1/service-orders [422 Unprocessable Entity, 304B, 16ms]
+  ✓  status 422
+  ✓  error.code = VEHICLE_NOT_FROM_REQUESTER
+
+↳ CPF inválido na abertura (400)
+  POST http://os-service:8080/api/v1/service-orders [400 Bad Request, 250B, 7ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Placa não cadastrada (404)
+  POST http://os-service:8080/api/v1/service-orders [404 Not Found, 234B, 11ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ JWT de cliente abrindo OS (403)
+  POST http://os-service:8080/api/v1/service-orders [403 Forbidden, 249B, 4ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+↳ Buscar OS
+  GET http://os-service:8080/api/v1/service-orders/41dfeab1-9e0f-4f09-9267-ebf644b0a51f [200 OK, 530B, 4ms]
+  ✓  status 200
+  ✓  id e código
+
+↳ Listar OS
+  GET http://os-service:8080/api/v1/service-orders [200 OK, 2.59kB, 5ms]
+  ✓  status 200
+  ✓  lista contém o recurso criado
+
+┌─────────────────────────┬───────────────────┬──────────────────┐
+│                         │          executed │           failed │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              iterations │                 1 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│                requests │                79 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│            test-scripts │                79 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│      prerequest-scripts │                 2 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              assertions │               168 │                0 │
+├─────────────────────────┴───────────────────┴──────────────────┤
+│ total run duration: 16.4s                                      │
+├────────────────────────────────────────────────────────────────┤
+│ total data received: 22.37kB (approx)                          │
+├────────────────────────────────────────────────────────────────┤
+│ average response time: 30ms [min: 3ms, max: 370ms, s.d.: 72ms] │
+└────────────────────────────────────────────────────────────────┘
+
+▶ 2. execution-service: diagnóstico
+newman
+
+postech-tc4 · execution-service
+
+❏ 1. Health e acesso
+↳ Liveness
+  GET http://execution-service:8080/health/live [200 OK, 190B, 75ms]
+  ✓  status 200
+  ✓  status ok
+
+↳ Readiness (DynamoDB)
+  GET http://execution-service:8080/health/ready [200 OK, 220B, 17ms]
+  ✓  status 200
+  ✓  pronto, DynamoDB ok
+
+↳ Fila sem token (401)
+  GET http://execution-service:8080/api/v1/executions/queue [401 Unauthorized, 268B, 13ms]
+  ✓  status 401
+  ✓  error.code = UNAUTHORIZED
+
+↳ Token inválido (401)
+  GET http://execution-service:8080/api/v1/executions/queue [401 Unauthorized, 258B, 4ms]
+  ✓  status 401
+  ✓  error.code = UNAUTHORIZED
+
+↳ JWT de cliente (403)
+  GET http://execution-service:8080/api/v1/executions/queue [403 Forbidden, 266B, 12ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+↳ Rota inexistente (404)
+  GET http://execution-service:8080/api/v1/nao-existe [404 Not Found, 245B, 6ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+❏ 2. Diagnóstico
+↳ Aguardar diagnóstico na fila (caminho feliz)
+  GET http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f [200 OK, 806B, 16ms]
+  ✓  status 200
+  ✓  execução em queued_diagnosis
+  ✓  dados da OS
+  ✓  linha do tempo começa em diagnosis_queued
+
+↳ Fila do mecânico
+  GET http://execution-service:8080/api/v1/executions/queue [200 OK, 3.22kB, 54ms]
+  ✓  status 200
+  ✓  count = itens
+  ✓  reparos antes dos diagnósticos
+
+↳ Fila por status
+  GET http://execution-service:8080/api/v1/executions/queue?status=queued_diagnosis&limit=200 [200 OK, 2.3kB, 23ms]
+  ✓  status 200
+  ✓  só queued_diagnosis
+  ✓  contém a OS
+
+↳ Status final na fila (400)
+  GET http://execution-service:8080/api/v1/executions/queue?status=finished [400 Bad Request, 292B, 6ms]
+  ✓  status 400
+  ✓  error.code = INVALID_STATUS
+
+↳ Status desconhecido na fila (400)
+  GET http://execution-service:8080/api/v1/executions/queue?status=xyz [400 Bad Request, 257B, 9ms]
+  ✓  status 400
+  ✓  error.code = INVALID_STATUS
+
+↳ limit inválido (400)
+  GET http://execution-service:8080/api/v1/executions/queue?limit=zero [400 Bad Request, 268B, 10ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Concluir diagnóstico sem iniciar (409)
+  POST http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/diagnosis/complete [409 Conflict, 297B, 13ms]
+  ✓  status 409
+  ✓  error.code = INVALID_TRANSITION
+
+↳ Iniciar diagnóstico (caminho feliz)
+  POST http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/diagnosis/start [200 OK, 648B, 23ms]
+  ✓  status 200
+  ✓  em diagnóstico
+
+↳ Iniciar de novo (409)
+  POST http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/diagnosis/start [409 Conflict, 296B, 20ms]
+  ✓  status 409
+  ✓  error.code = INVALID_TRANSITION
+
+↳ Diagnóstico vazio (422)
+  POST http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/diagnosis/complete [422 Unprocessable Entity, 306B, 24ms]
+  ✓  status 422
+  ✓  error.code = INVALID_DIAGNOSIS
+
+↳ Quantidade inválida (400)
+  POST http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/diagnosis/complete [400 Bad Request, 368B, 4ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Concluir diagnóstico (caminho feliz)
+  POST http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/diagnosis/complete [200 OK, 885B, 23ms]
+  ✓  status 200
+  ✓  diagnosticada
+  ✓  serviço e peças do diagnóstico
+
+↳ Detalhe com linha do tempo
+  GET http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f [200 OK, 1.63kB, 21ms]
+  ✓  status 200
+  ✓  eventos do diagnóstico
+  ✓  ator admin nas ações manuais
+
+↳ Execução inexistente (404)
+  GET http://execution-service:8080/api/v1/executions/5ea6b97e-8719-4b03-a64a-3eb80fdf5a1f [404 Not Found, 306B, 12ms]
+  ✓  status 404
+  ✓  error.code = EXECUTION_NOT_FOUND
+
+↳ os_id inválido (400)
+  GET http://execution-service:8080/api/v1/executions/nao-e-uuid [400 Bad Request, 256B, 7ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ os_id longo demais (400)
+  GET http://execution-service:8080/api/v1/executions/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx [400 Bad Request, 256B, 5ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Aguardar diagnóstico na fila (pagamento recusado)
+  GET http://execution-service:8080/api/v1/executions/2d08c389-3e0e-43fd-90fb-022055485e55 [200 OK, 806B, 49ms]
+  ✓  status 200
+  ✓  execução em queued_diagnosis
+  ✓  placa do veículo da OS
+
+↳ Iniciar diagnóstico (pagamento recusado)
+  POST http://execution-service:8080/api/v1/executions/2d08c389-3e0e-43fd-90fb-022055485e55/diagnosis/start [200 OK, 648B, 23ms]
+  ✓  status 200
+  ✓  execução em in_diagnosis
+
+↳ Concluir diagnóstico (pagamento recusado)
+  POST http://execution-service:8080/api/v1/executions/2d08c389-3e0e-43fd-90fb-022055485e55/diagnosis/complete [200 OK, 888B, 32ms]
+  ✓  status 200
+  ✓  execução em diagnosed
+  ✓  diagnóstico com o serviço e as peças
+
+↳ Aguardar diagnóstico na fila (reparo recusado)
+  GET http://execution-service:8080/api/v1/executions/8c173055-5e31-4d5b-aa61-c2d80752fda2 [200 OK, 798B, 19ms]
+  ✓  status 200
+  ✓  execução em queued_diagnosis
+  ✓  placa do veículo da OS
+
+↳ Iniciar diagnóstico (reparo recusado)
+  POST http://execution-service:8080/api/v1/executions/8c173055-5e31-4d5b-aa61-c2d80752fda2/diagnosis/start [200 OK, 644B, 31ms]
+  ✓  status 200
+  ✓  execução em in_diagnosis
+
+↳ Concluir diagnóstico (reparo recusado)
+  POST http://execution-service:8080/api/v1/executions/8c173055-5e31-4d5b-aa61-c2d80752fda2/diagnosis/complete [200 OK, 884B, 21ms]
+  ✓  status 200
+  ✓  execução em diagnosed
+  ✓  diagnóstico com o serviço e as peças
+
+↳ Aguardar diagnóstico na fila (cliente recusa)
+  GET http://execution-service:8080/api/v1/executions/16c2abd0-e108-4952-84c1-514ac1f1abe3 [200 OK, 806B, 44ms]
+  ✓  status 200
+  ✓  execução em queued_diagnosis
+  ✓  placa do veículo da OS
+
+↳ Iniciar diagnóstico (cliente recusa)
+  POST http://execution-service:8080/api/v1/executions/16c2abd0-e108-4952-84c1-514ac1f1abe3/diagnosis/start [200 OK, 648B, 50ms]
+  ✓  status 200
+  ✓  execução em in_diagnosis
+
+↳ Concluir diagnóstico (cliente recusa)
+  POST http://execution-service:8080/api/v1/executions/16c2abd0-e108-4952-84c1-514ac1f1abe3/diagnosis/complete [200 OK, 882B, 148ms]
+  ✓  status 200
+  ✓  execução em diagnosed
+  ✓  diagnóstico com o serviço e as peças
+
+↳ Aguardar diagnóstico na fila (falha no orçamento)
+  GET http://execution-service:8080/api/v1/executions/605f666c-b5f0-47b2-96bc-34337a36f951 [200 OK, 806B, 29ms]
+  ✓  status 200
+  ✓  execução em queued_diagnosis
+  ✓  placa do veículo da OS
+
+↳ Iniciar diagnóstico (falha no orçamento)
+  POST http://execution-service:8080/api/v1/executions/605f666c-b5f0-47b2-96bc-34337a36f951/diagnosis/start [200 OK, 648B, 31ms]
+  ✓  status 200
+  ✓  execução em in_diagnosis
+
+↳ Concluir diagnóstico (falha no orçamento)
+  POST http://execution-service:8080/api/v1/executions/605f666c-b5f0-47b2-96bc-34337a36f951/diagnosis/complete [200 OK, 888B, 34ms]
+  ✓  status 200
+  ✓  execução em diagnosed
+  ✓  diagnóstico com o serviço e as peças
+
+┌─────────────────────────┬───────────────────┬──────────────────┐
+│                         │          executed │           failed │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              iterations │                 1 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│                requests │                34 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│            test-scripts │                34 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│      prerequest-scripts │                 5 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              assertions │                82 │                0 │
+├─────────────────────────┴───────────────────┴──────────────────┤
+│ total run duration: 7.4s                                       │
+├────────────────────────────────────────────────────────────────┤
+│ total data received: 17.08kB (approx)                          │
+├────────────────────────────────────────────────────────────────┤
+│ average response time: 26ms [min: 4ms, max: 148ms, s.d.: 26ms] │
+└────────────────────────────────────────────────────────────────┘
+
+▶ 3. billing-service: orçamento, decisão do cliente, pagamento e webhook
+newman
+
+postech-tc4 · billing-service
+
+❏ 1. Health
+↳ Liveness
+  GET http://billing-service:8082/health/live [200 OK, 190B, 490ms]
+  ✓  status 200
+  ✓  status ok
+
+↳ Readiness (Postgres e SQS)
+  GET http://billing-service:8082/health/ready [200 OK, 228B, 213ms]
+  ✓  status 200
+  ✓  banco e SQS ok
+
+❏ 2. Orçamento
+↳ Aguardar orçamento da OS (caminho feliz)
+  GET http://billing-service:8082/api/v1/budgets/os/41dfeab1-9e0f-4f09-9267-ebf644b0a51f [200 OK, 833B, 8ms]
+  ✓  status 200
+  ✓  orçamento aguardando aprovação
+  ✓  total do orçamento = 350
+  ✓  itens: serviço e peças
+  ✓  OS, código e cliente
+  ✓  ainda sem cobrança
+
+↳ Orçamento por id (cliente dono)
+  GET http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce [200 OK, 833B, 12ms]
+  ✓  status 200
+  ✓  é o orçamento da OS
+  ✓  sem o CPF na resposta (minimização)
+
+↳ Orçamento por id (admin)
+  GET http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce [200 OK, 833B, 20ms]
+  ✓  status 200
+  ✓  total 350
+
+↳ Outro cliente lendo o orçamento (403)
+  GET http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce [403 Forbidden, 259B, 6ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+↳ Sem token (401)
+  GET http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce [401 Unauthorized, 328B, 6ms]
+  ✓  status 401
+  ✓  error.code = UNAUTHORIZED
+
+↳ Orçamento inexistente (404)
+  GET http://billing-service:8082/api/v1/budgets/aef44e80-7ff0-457d-b120-1e78962e6de2 [404 Not Found, 258B, 6ms]
+  ✓  status 404
+  ✓  error.code = BUDGET_NOT_FOUND
+
+↳ Orçamento com UUID inválido (400)
+  GET http://billing-service:8082/api/v1/budgets/nao-e-uuid [400 Bad Request, 265B, 5ms]
+  ✓  status 400
+  ✓  error.code = INVALID_REQUEST
+
+↳ Orçamento de OS sem orçamento (404)
+  GET http://billing-service:8082/api/v1/budgets/os/4f9734cf-a623-44d0-959f-3383494d4ac9 [404 Not Found, 258B, 9ms]
+  ✓  status 404
+  ✓  error.code = BUDGET_NOT_FOUND
+
+↳ Aprovar como admin (403)
+  POST http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce/approve [403 Forbidden, 249B, 9ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+↳ Outro cliente aprovando (403)
+  POST http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce/approve [403 Forbidden, 259B, 12ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+↳ Recusar sem motivo (400)
+  POST http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce/reject [400 Bad Request, 326B, 6ms]
+  ✓  status 400
+  ✓  error.code = INVALID_REQUEST
+
+↳ Aprovar orçamento (cliente dono)
+  POST http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce/approve [200 OK, 874B, 11ms]
+  ✓  status 200
+  ✓  orçamento aprovado
+
+↳ Aprovar de novo (409)
+  POST http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce/approve [409 Conflict, 299B, 10ms]
+  ✓  status 409
+  ✓  error.code = INVALID_TRANSITION
+
+↳ Recusar orçamento aprovado (409)
+  POST http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce/reject [409 Conflict, 299B, 11ms]
+  ✓  status 409
+  ✓  error.code = INVALID_TRANSITION
+
+↳ Aguardar orçamento (pagamento recusado)
+  GET http://billing-service:8082/api/v1/budgets/os/2d08c389-3e0e-43fd-90fb-022055485e55 [200 OK, 833B, 5ms]
+  ✓  status 200
+  ✓  orçamento aguardando aprovação
+  ✓  total do orçamento = 350
+
+↳ Aprovar orçamento (pagamento recusado, JWT do cliente)
+  POST http://billing-service:8082/api/v1/budgets/3f472dc7-fd67-4d39-89d9-02a3d7ba0918/approve [200 OK, 874B, 8ms]
+  ✓  status 200
+  ✓  orçamento aprovado
+
+↳ Aguardar orçamento (reparo recusado)
+  GET http://billing-service:8082/api/v1/budgets/os/8c173055-5e31-4d5b-aa61-c2d80752fda2 [200 OK, 833B, 5ms]
+  ✓  status 200
+  ✓  orçamento aguardando aprovação
+  ✓  total do orçamento = 350
+
+↳ Aprovar orçamento (reparo recusado, JWT do cliente)
+  POST http://billing-service:8082/api/v1/budgets/ccdace81-eacd-4710-ba87-07ab4ae1e266/approve [200 OK, 874B, 6ms]
+  ✓  status 200
+  ✓  orçamento aprovado
+
+↳ Aguardar orçamento (cliente recusa)
+  GET http://billing-service:8082/api/v1/budgets/os/16c2abd0-e108-4952-84c1-514ac1f1abe3 [200 OK, 833B, 7ms]
+  ✓  status 200
+  ✓  orçamento aguardando aprovação
+  ✓  total do orçamento = 350
+
+↳ Recusar orçamento (cliente recusa)
+  POST http://billing-service:8082/api/v1/budgets/288f386a-fab7-4fc6-a436-1e64f1b8ac00/reject [200 OK, 910B, 137ms]
+  ✓  status 200
+  ✓  orçamento recusado com o motivo
+
+❏ 3. Pagamento
+↳ Aguardar cobrança (caminho feliz)
+  GET http://billing-service:8082/api/v1/budgets/os/41dfeab1-9e0f-4f09-9267-ebf644b0a51f [200 OK, 1.23kB, 15ms]
+  ✓  status 200
+  ✓  cobrança pendente
+  ✓  gateway fake, valor do orçamento
+  ✓  checkout_url do pagamento
+
+↳ Consultar pagamento (cliente dono)
+  GET http://billing-service:8082/api/v1/payments/cb4ca0a7-35fc-4ec4-a70b-209f1828e6a1 [200 OK, 545B, 107ms]
+  ✓  status 200
+  ✓  pagamento pendente do orçamento
+
+↳ Pagamento de outro cliente (403)
+  GET http://billing-service:8082/api/v1/payments/cb4ca0a7-35fc-4ec4-a70b-209f1828e6a1 [403 Forbidden, 259B, 30ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+↳ Pagamento inexistente (404)
+  GET http://billing-service:8082/api/v1/payments/01b283e3-ad95-4af7-b754-c00a2a457daf [404 Not Found, 258B, 4ms]
+  ✓  status 404
+  ✓  error.code = PAYMENT_NOT_FOUND
+
+↳ Pagamento com UUID inválido (400)
+  GET http://billing-service:8082/api/v1/payments/nao-e-uuid [400 Bad Request, 265B, 7ms]
+  ✓  status 400
+  ✓  error.code = INVALID_REQUEST
+
+↳ Checkout fake (página HTML)
+  GET http://billing-service:8082/fake-checkout/cb4ca0a7-35fc-4ec4-a70b-209f1828e6a1 [200 OK, 938B, 155ms]
+  ✓  status 200
+  ✓  HTML com o id do pagamento
+
+↳ Simular com status inválido (400)
+  POST http://billing-service:8082/api/v1/payments/cb4ca0a7-35fc-4ec4-a70b-209f1828e6a1/simulate [400 Bad Request, 325B, 5ms]
+  ✓  status 400
+  ✓  error.code = INVALID_REQUEST
+
+↳ Cliente simulando pagamento (403)
+  POST http://billing-service:8082/api/v1/payments/cb4ca0a7-35fc-4ec4-a70b-209f1828e6a1/simulate [403 Forbidden, 249B, 4ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+↳ Simular pagamento aprovado (caminho feliz)
+  POST http://billing-service:8082/api/v1/payments/cb4ca0a7-35fc-4ec4-a70b-209f1828e6a1/simulate [200 OK, 615B, 7ms]
+  ✓  status 200
+  ✓  pagamento approved
+
+↳ Simular de novo (409)
+  POST http://billing-service:8082/api/v1/payments/cb4ca0a7-35fc-4ec4-a70b-209f1828e6a1/simulate [409 Conflict, 327B, 5ms]
+  ✓  status 409
+  ✓  error.code = INVALID_TRANSITION
+
+↳ Aguardar cobrança (pagamento recusado)
+  GET http://billing-service:8082/api/v1/budgets/os/2d08c389-3e0e-43fd-90fb-022055485e55 [200 OK, 1.23kB, 7ms]
+  ✓  status 200
+  ✓  cobrança pendente
+
+↳ Simular pagamento recusado (pagamento recusado)
+  POST http://billing-service:8082/api/v1/payments/a73d5d65-29b2-4624-a7aa-540a4626d61c/simulate [200 OK, 676B, 11ms]
+  ✓  status 200
+  ✓  pagamento failed
+
+↳ Aguardar cobrança (reparo recusado)
+  GET http://billing-service:8082/api/v1/budgets/os/8c173055-5e31-4d5b-aa61-c2d80752fda2 [200 OK, 1.23kB, 18ms]
+  ✓  status 200
+  ✓  cobrança pendente
+
+↳ Simular pagamento aprovado (reparo recusado)
+  POST http://billing-service:8082/api/v1/payments/b412deb5-780a-419a-a297-c2bee0a16f2d/simulate [200 OK, 614B, 23ms]
+  ✓  status 200
+  ✓  pagamento approved
+
+❏ 4. Webhook Mercado Pago
+↳ Notificação de outro tipo (ignorada)
+  POST http://billing-service:8082/api/v1/webhooks/mercadopago?type=merchant_order&data.id=123 [200 OK, 195B, 11ms]
+  ✓  status 200
+  ✓  status ignored
+
+↳ Notificação sem assinatura (401)
+  POST http://billing-service:8082/api/v1/webhooks/mercadopago?type=payment&data.id=123456789 [401 Unauthorized, 267B, 7ms]
+  ✓  status 401
+  ✓  error.code = INVALID_SIGNATURE
+
+↳ Assinatura inválida (401)
+  ┌
+  │ `Using "CryptoJS" is deprecated. Use "require('crypto-
+  │ js')" instead.`
+  └
+  POST http://billing-service:8082/api/v1/webhooks/mercadopago?type=payment&data.id=123456789 [401 Unauthorized, 251B, 6ms]
+  ✓  status 401
+  ✓  error.code = INVALID_SIGNATURE
+
+┌─────────────────────────┬───────────────────┬──────────────────┐
+│                         │          executed │           failed │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              iterations │                 1 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│                requests │                39 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│            test-scripts │                39 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│      prerequest-scripts │                 8 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              assertions │                88 │                0 │
+├─────────────────────────┴───────────────────┴──────────────────┤
+│ total run duration: 9.3s                                       │
+├────────────────────────────────────────────────────────────────┤
+│ total data received: 14.21kB (approx)                          │
+├────────────────────────────────────────────────────────────────┤
+│ average response time: 36ms [min: 4ms, max: 490ms, s.d.: 86ms] │
+└────────────────────────────────────────────────────────────────┘
+
+▶ 4. execution-service: reparo e compensações
+newman
+
+postech-tc4 · execution-service
+
+❏ 4. Reparo
+↳ Aguardar reparo na fila (caminho feliz)
+  GET http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f [200 OK, 2.09kB, 217ms]
+  ✓  status 200
+  ✓  execução em queued_repair
+  ✓  itens com preço vindos do orçamento
+
+↳ Concluir reparo sem iniciar (409)
+  POST http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/repair/finish [409 Conflict, 293B, 37ms]
+  ✓  status 409
+  ✓  error.code = INVALID_TRANSITION
+
+↳ Iniciar reparo (caminho feliz)
+  POST http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/repair/start [200 OK, 1.15kB, 24ms]
+  ✓  status 200
+  ✓  em reparo
+
+↳ Concluir reparo (caminho feliz)
+  POST http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/repair/finish [200 OK, 1.2kB, 23ms]
+  ✓  status 200
+  ✓  finalizada
+
+↳ Diagnóstico em execução finalizada (409)
+  POST http://execution-service:8080/api/v1/executions/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/diagnosis/start [409 Conflict, 292B, 12ms]
+  ✓  status 409
+  ✓  error.code = INVALID_TRANSITION
+
+↳ Iniciar reparo de execução inexistente (404)
+  POST http://execution-service:8080/api/v1/executions/aa0196b9-78e3-4e09-ad15-2373ecf2e4d1/repair/start [404 Not Found, 306B, 17ms]
+  ✓  status 404
+  ✓  error.code = EXECUTION_NOT_FOUND
+
+❏ 5. Compensações
+↳ Reparo recusado pela falha simulada
+  GET http://execution-service:8080/api/v1/executions/8c173055-5e31-4d5b-aa61-c2d80752fda2 [200 OK, 1.99kB, 12ms]
+  ✓  status 200
+  ✓  execução em rejected
+  ✓  motivo da recusa
+
+↳ Iniciar reparo recusado (409)
+  POST http://execution-service:8080/api/v1/executions/8c173055-5e31-4d5b-aa61-c2d80752fda2/repair/start [409 Conflict, 289B, 13ms]
+  ✓  status 409
+  ✓  error.code = INVALID_TRANSITION
+
+↳ Pagamento recusado: execução cancelada
+  GET http://execution-service:8080/api/v1/executions/2d08c389-3e0e-43fd-90fb-022055485e55 [200 OK, 2.08kB, 18ms]
+  ✓  status 200
+  ✓  execução em cancelled
+
+↳ Cliente recusou: execução cancelada
+  GET http://execution-service:8080/api/v1/executions/16c2abd0-e108-4952-84c1-514ac1f1abe3 [200 OK, 2.05kB, 30ms]
+  ✓  status 200
+  ✓  execução em cancelled
+  ✓  evento execution_cancelled
+
+↳ Falha no orçamento: execução cancelada
+  GET http://execution-service:8080/api/v1/executions/605f666c-b5f0-47b2-96bc-34337a36f951 [200 OK, 2.13kB, 30ms]
+  ✓  status 200
+  ✓  execução em cancelled
+
+↳ Iniciar reparo de execução cancelada (409)
+  POST http://execution-service:8080/api/v1/executions/16c2abd0-e108-4952-84c1-514ac1f1abe3/repair/start [409 Conflict, 290B, 12ms]
+  ✓  status 409
+  ✓  error.code = INVALID_TRANSITION
+
+┌─────────────────────────┬───────────────────┬───────────────────┐
+│                         │          executed │            failed │
+├─────────────────────────┼───────────────────┼───────────────────┤
+│              iterations │                 1 │                 0 │
+├─────────────────────────┼───────────────────┼───────────────────┤
+│                requests │                12 │                 0 │
+├─────────────────────────┼───────────────────┼───────────────────┤
+│            test-scripts │                12 │                 0 │
+├─────────────────────────┼───────────────────┼───────────────────┤
+│      prerequest-scripts │                 5 │                 0 │
+├─────────────────────────┼───────────────────┼───────────────────┤
+│              assertions │                27 │                 0 │
+├─────────────────────────┴───────────────────┴───────────────────┤
+│ total run duration: 2.7s                                        │
+├─────────────────────────────────────────────────────────────────┤
+│ total data received: 12kB (approx)                              │
+├─────────────────────────────────────────────────────────────────┤
+│ average response time: 37ms [min: 12ms, max: 217ms, s.d.: 54ms] │
+└─────────────────────────────────────────────────────────────────┘
+
+▶ 5. billing-service: compensações
+newman
+
+postech-tc4 · billing-service
+
+❏ 5. Compensações
+↳ Pagamento recusado: orçamento cancelado
+  GET http://billing-service:8082/api/v1/budgets/os/2d08c389-3e0e-43fd-90fb-022055485e55 [200 OK, 1.44kB, 56ms]
+  ✓  status 200
+  ✓  orçamento cancelado
+  ✓  pagamento failed
+
+↳ Reparo recusado: pagamento estornado
+  GET http://billing-service:8082/api/v1/budgets/ccdace81-eacd-4710-ba87-07ab4ae1e266 [200 OK, 1.45kB, 10ms]
+  ✓  status 200
+  ✓  pagamento estornado
+  ✓  refunded_at preenchido
+
+↳ Cliente recusou: orçamento sem cobrança
+  GET http://billing-service:8082/api/v1/budgets/288f386a-fab7-4fc6-a436-1e64f1b8ac00 [200 OK, 904B, 91ms]
+  ✓  status 200
+  ✓  recusado e sem pagamento
+
+↳ Falha no orçamento: OS cancelada (os-service)
+  GET http://os-service:8080/api/v1/service-orders/605f666c-b5f0-47b2-96bc-34337a36f951 [200 OK, 913B, 31ms]
+  ✓  status 200
+  ✓  OS cancelada
+
+↳ Falha no orçamento: nenhum orçamento (404)
+  GET http://billing-service:8082/api/v1/budgets/os/605f666c-b5f0-47b2-96bc-34337a36f951 [404 Not Found, 258B, 13ms]
+  ✓  status 404
+  ✓  error.code = BUDGET_NOT_FOUND
+
+↳ Caminho feliz: orçamento e pagamento aprovados
+  GET http://billing-service:8082/api/v1/budgets/433bf04b-6338-4663-9ed0-4665d4b276ce [200 OK, 1.3kB, 16ms]
+  ✓  status 200
+  ✓  aprovado e pago
+
+┌─────────────────────────┬───────────────────┬──────────────────┐
+│                         │          executed │           failed │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              iterations │                 1 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│                requests │                 6 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│            test-scripts │                 6 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│      prerequest-scripts │                 3 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              assertions │                14 │                0 │
+├─────────────────────────┴───────────────────┴──────────────────┤
+│ total run duration: 1457ms                                     │
+├────────────────────────────────────────────────────────────────┤
+│ total data received: 5.2kB (approx)                            │
+├────────────────────────────────────────────────────────────────┤
+│ average response time: 36ms [min: 10ms, max: 91ms, s.d.: 29ms] │
+└────────────────────────────────────────────────────────────────┘
+
+▶ 6. os-service: entrega, consultas do cliente, compensações e limpeza
+newman
+
+postech-tc4 · os-service
+
+❏ 6. Entrega e consultas
+↳ Aguardar OS finalizada (caminho feliz)
+  GET http://os-service:8080/api/v1/service-orders/41dfeab1-9e0f-4f09-9267-ebf644b0a51f [200 OK, 880B, 76ms]
+  ✓  status 200
+  ✓  OS em finished
+  ✓  finished_at preenchido
+
+↳ Excluir peça usada por OS ativa (409)
+  DELETE http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405 [409 Conflict, 244B, 7ms]
+  ✓  status 409
+  ✓  error.code = RESOURCE_IN_USE
+
+↳ Excluir serviço usado por OS ativa (409)
+  DELETE http://os-service:8080/api/v1/services/0b174ecd-9919-48b7-b760-fcd88d602af4 [409 Conflict, 247B, 5ms]
+  ✓  status 409
+  ✓  error.code = RESOURCE_IN_USE
+
+↳ Cancelar OS finalizada (409)
+  POST http://os-service:8080/api/v1/service-orders/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/cancel [409 Conflict, 279B, 6ms]
+  ✓  status 409
+  ✓  error.code = ORDER_NOT_CANCELLABLE
+
+↳ Entregar veículo
+  POST http://os-service:8080/api/v1/service-orders/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/deliver [204 No Content, 116B, 138ms]
+  ✓  status 204
+
+↳ Entregar de novo (409)
+  POST http://os-service:8080/api/v1/service-orders/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/deliver [409 Conflict, 265B, 8ms]
+  ✓  status 409
+  ✓  error.code = INVALID_STATUS_TRANSITION
+
+↳ Entregar OS inexistente (404)
+  POST http://os-service:8080/api/v1/service-orders/730dc506-2bae-4be9-a561-f88c5ec75af3/deliver [404 Not Found, 234B, 5ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Buscar OS entregue
+  GET http://os-service:8080/api/v1/service-orders/41dfeab1-9e0f-4f09-9267-ebf644b0a51f [200 OK, 881B, 5ms]
+  ✓  status 200
+  ✓  OS entregue
+  ✓  serviço e peças do diagnóstico
+  ✓  total 350
+
+↳ Histórico de status
+  GET http://os-service:8080/api/v1/service-orders/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/history [200 OK, 1.17kB, 7ms]
+  ✓  status 200
+  ✓  começa em received e termina em delivered
+  ✓  passou pelas etapas da saga
+
+↳ Detalhes da OS (API composition)
+  GET http://os-service:8080/api/v1/service-orders/41dfeab1-9e0f-4f09-9267-ebf644b0a51f/details [200 OK, 5.84kB, 83ms]
+  ✓  status 200
+  ✓  composição completa
+  ✓  saga concluída
+  ✓  orçamento e pagamento aprovados
+  ✓  execução finalizada
+
+↳ OS inexistente (404)
+  GET http://os-service:8080/api/v1/service-orders/822ba1f5-e5a1-4ccf-aab2-1a5b3b27af18 [404 Not Found, 248B, 14ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ OS com UUID inválido (400)
+  GET http://os-service:8080/api/v1/service-orders/nao-e-uuid [400 Bad Request, 274B, 10ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Detalhes de OS inexistente (404)
+  GET http://os-service:8080/api/v1/service-orders/e089419b-3a6a-4850-8d09-de7a458d3069/details [404 Not Found, 248B, 9ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Detalhes com UUID inválido (400)
+  GET http://os-service:8080/api/v1/service-orders/nao-e-uuid/details [400 Bad Request, 274B, 5ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Histórico de OS inexistente (404)
+  GET http://os-service:8080/api/v1/service-orders/1c59958f-e651-4a4f-a871-e8e9371f1e34/history [404 Not Found, 248B, 7ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Histórico com UUID inválido (400)
+  GET http://os-service:8080/api/v1/service-orders/nao-e-uuid/history [400 Bad Request, 274B, 4ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Tempo médio de execução
+  GET http://os-service:8080/api/v1/service-orders/metrics/execution-time [200 OK, 231B, 6ms]
+  ✓  status 200
+  ✓  média em segundos e texto
+
+❏ 6. Entrega e consultas / Consultas do cliente (JWT do CPF)
+↳ OS pelo código (cliente dono)
+  GET http://os-service:8080/api/v1/service-orders/code/51?document=52410396275 [200 OK, 881B, 8ms]
+  ✓  status 200
+  ✓  é a OS entregue
+
+↳ OS do cliente
+  GET http://os-service:8080/api/v1/service-orders/requester?document=52410396275 [200 OK, 3.77kB, 6ms]
+  ✓  status 200
+  ✓  contém as OS da execução
+  ✓  todas do mesmo cliente
+
+↳ Equipe consulta as OS do cliente
+  GET http://os-service:8080/api/v1/service-orders/requester?document=52410396275 [200 OK, 3.77kB, 5ms]
+  ✓  status 200
+  ✓  contém a OS
+
+↳ OS de outro CPF (403)
+  GET http://os-service:8080/api/v1/service-orders/requester?document=52410396275 [403 Forbidden, 276B, 7ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+↳ Código com CPF de outro cliente (403)
+  GET http://os-service:8080/api/v1/service-orders/code/51?document=52410396275 [403 Forbidden, 276B, 9ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+↳ Código de OS que não é do cliente (404)
+  GET http://os-service:8080/api/v1/service-orders/code/51?document=71946640115 [404 Not Found, 248B, 6ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Código inexistente (404)
+  GET http://os-service:8080/api/v1/service-orders/code/999999999?document=52410396275 [404 Not Found, 248B, 40ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Código não numérico (400)
+  GET http://os-service:8080/api/v1/service-orders/code/abc?document=52410396275 [400 Bad Request, 282B, 4ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+  ✓  mensagem sem detalhe interno
+
+↳ Consulta sem document (400)
+  GET http://os-service:8080/api/v1/service-orders/requester [400 Bad Request, 272B, 3ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ CPF inválido na query (400)
+  GET http://os-service:8080/api/v1/service-orders/requester?document=123 [400 Bad Request, 250B, 4ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+↳ Consulta do cliente sem token (401)
+  GET http://os-service:8080/api/v1/service-orders/requester?document=52410396275 [401 Unauthorized, 260B, 5ms]
+  ✓  status 401
+  ✓  error.code = UNAUTHORIZED
+
+↳ JWT de cliente na rota da equipe (403)
+  GET http://os-service:8080/api/v1/service-orders/41dfeab1-9e0f-4f09-9267-ebf644b0a51f [403 Forbidden, 249B, 4ms]
+  ✓  status 403
+  ✓  error.code = FORBIDDEN
+
+❏ 7. Compensações
+↳ Aguardar OS cancelada (pagamento recusado)
+  GET http://os-service:8080/api/v1/service-orders/2d08c389-3e0e-43fd-90fb-022055485e55 [200 OK, 886B, 4ms]
+  ✓  status 200
+  ✓  OS em cancelled
+
+↳ Detalhes: pagamento recusado
+  GET http://os-service:8080/api/v1/service-orders/2d08c389-3e0e-43fd-90fb-022055485e55/details [200 OK, 5.36kB, 20ms]
+  ✓  status 200
+  ✓  orçamento e execução cancelados
+  ✓  saga cancelada
+  ✓  pagamento falhou
+
+↳ Aguardar OS cancelada (reparo recusado)
+  GET http://os-service:8080/api/v1/service-orders/8c173055-5e31-4d5b-aa61-c2d80752fda2 [200 OK, 908B, 8ms]
+  ✓  status 200
+  ✓  OS em cancelled
+
+↳ Detalhes: reparo recusado com estorno
+  GET http://os-service:8080/api/v1/service-orders/8c173055-5e31-4d5b-aa61-c2d80752fda2/details [200 OK, 5.48kB, 11ms]
+  ✓  status 200
+  ✓  pagamento estornado e execução recusada
+  ✓  saga cancelada com motivo
+
+↳ Aguardar OS cancelada (cliente recusou)
+  GET http://os-service:8080/api/v1/service-orders/16c2abd0-e108-4952-84c1-514ac1f1abe3 [200 OK, 875B, 4ms]
+  ✓  status 200
+  ✓  OS em cancelled
+
+↳ Detalhes: orçamento recusado
+  GET http://os-service:8080/api/v1/service-orders/16c2abd0-e108-4952-84c1-514ac1f1abe3/details [200 OK, 4.46kB, 12ms]
+  ✓  status 200
+  ✓  execução cancelada
+  ✓  orçamento recusado, sem cobrança
+  ✓  saga cancelada
+
+↳ Aguardar OS cancelada (falha no orçamento)
+  GET http://os-service:8080/api/v1/service-orders/605f666c-b5f0-47b2-96bc-34337a36f951 [200 OK, 913B, 4ms]
+  ✓  status 200
+  ✓  OS em cancelled
+
+↳ Detalhes: falha no orçamento
+  GET http://os-service:8080/api/v1/service-orders/605f666c-b5f0-47b2-96bc-34337a36f951/details [200 OK, 3.74kB, 23ms]
+  ✓  status 200
+  ✓  execução cancelada
+  ✓  sem orçamento
+  ✓  saga cancelada com motivo
+
+↳ Abrir OS (cancelada pela oficina)
+  POST http://os-service:8080/api/v1/service-orders [201 Created, 529B, 54ms]
+  ✓  status 201
+
+↳ Aguardar execução na fila (via /details)
+  GET http://os-service:8080/api/v1/service-orders/b9dca3c3-3b64-4fa8-b036-9c6661ae64ff/details [200 OK, 762B, 18ms]
+
+Attempting to set next request to f9df7d06-3975-4c16-b255-acc0091f5e56
+
+↳ Aguardar execução na fila (via /details)
+  GET http://os-service:8080/api/v1/service-orders/b9dca3c3-3b64-4fa8-b036-9c6661ae64ff/details [200 OK, 1.38kB, 13ms]
+  ✓  status 200
+  ✓  execução na fila de diagnóstico
+
+↳ Cancelar OS (oficina)
+  POST http://os-service:8080/api/v1/service-orders/b9dca3c3-3b64-4fa8-b036-9c6661ae64ff/cancel [204 No Content, 116B, 18ms]
+  ✓  status 204
+
+↳ Cancelar de novo (409)
+  POST http://os-service:8080/api/v1/service-orders/b9dca3c3-3b64-4fa8-b036-9c6661ae64ff/cancel [409 Conflict, 279B, 4ms]
+  ✓  status 409
+  ✓  error.code = ORDER_NOT_CANCELLABLE
+
+↳ Cancelar OS inexistente (404)
+  POST http://os-service:8080/api/v1/service-orders/eaf54edd-5288-44a0-acb8-95b41a3809ce/cancel [404 Not Found, 234B, 6ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Detalhes: cancelada pela oficina
+  GET http://os-service:8080/api/v1/service-orders/b9dca3c3-3b64-4fa8-b036-9c6661ae64ff/details [200 OK, 2.07kB, 44ms]
+  ✓  status 200
+  ✓  execução cancelada
+  ✓  OS cancelada com o motivo
+
+↳ Estoque depois das compensações (13)
+  GET http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405 [200 OK, 420B, 5ms]
+  ✓  status 200
+  ✓  estoque 13
+
+↳ E-mails da Lambda notifier (Mailpit)
+  GET http://mailpit:8025/api/v1/search?query=to:ana.mvxb346r@example.com [200 OK, 17.4kB, 12ms]
+  ✓  status 200
+  ✓  e-mails da saga, inclusive o da entrega
+  ✓  todos para o e-mail do cliente
+
+❏ 8. Limpeza
+↳ Excluir peça (sem OS ativa)
+  DELETE http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405 [204 No Content, 116B, 13ms]
+  ✓  status 204
+
+↳ Peça excluída (404)
+  GET http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405 [404 Not Found, 239B, 4ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Excluir peça de novo (404)
+  DELETE http://os-service:8080/api/v1/parts/4790d848-f7c0-4833-8627-11d9a61bf405 [404 Not Found, 239B, 4ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Excluir serviço (sem OS ativa)
+  DELETE http://os-service:8080/api/v1/services/0b174ecd-9919-48b7-b760-fcd88d602af4 [204 No Content, 116B, 6ms]
+  ✓  status 204
+
+↳ Excluir serviço de novo (404)
+  DELETE http://os-service:8080/api/v1/services/0b174ecd-9919-48b7-b760-fcd88d602af4 [404 Not Found, 242B, 5ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ OS entregue mantém os itens
+  GET http://os-service:8080/api/v1/service-orders/41dfeab1-9e0f-4f09-9267-ebf644b0a51f [200 OK, 881B, 7ms]
+  ✓  status 200
+  ✓  serviço e peça copiados
+
+↳ Excluir veículo com OS no histórico (409)
+  DELETE http://os-service:8080/api/v1/vehicles/cc9f4ce2-8412-4a21-b359-e05e86614c5e [409 Conflict, 247B, 5ms]
+  ✓  status 409
+  ✓  error.code = RESOURCE_IN_USE
+
+↳ Excluir cliente com OS no histórico (409)
+  DELETE http://os-service:8080/api/v1/requesters/eb468a3a-89eb-4425-a3c0-3bc3d2449f41 [409 Conflict, 249B, 6ms]
+  ✓  status 409
+  ✓  error.code = RESOURCE_IN_USE
+
+↳ Excluir veículo do outro cliente
+  DELETE http://os-service:8080/api/v1/vehicles/b63a33b4-8353-4f18-9c0e-91331c2dbdad [204 No Content, 116B, 6ms]
+  ✓  status 204
+
+↳ Veículo excluído (404)
+  GET http://os-service:8080/api/v1/vehicles/b63a33b4-8353-4f18-9c0e-91331c2dbdad [404 Not Found, 242B, 4ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Excluir veículo de novo (404)
+  DELETE http://os-service:8080/api/v1/vehicles/b63a33b4-8353-4f18-9c0e-91331c2dbdad [404 Not Found, 242B, 3ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Excluir outro cliente
+  DELETE http://os-service:8080/api/v1/requesters/c406ded0-ed67-4987-a1bd-46c494560bfc [204 No Content, 116B, 124ms]
+  ✓  status 204
+
+↳ Cliente excluído (404)
+  GET http://os-service:8080/api/v1/requesters/c406ded0-ed67-4987-a1bd-46c494560bfc [404 Not Found, 244B, 4ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Excluir cliente de novo (404)
+  DELETE http://os-service:8080/api/v1/requesters/c406ded0-ed67-4987-a1bd-46c494560bfc [404 Not Found, 244B, 12ms]
+  ✓  status 404
+  ✓  error.code = NOT_FOUND
+
+↳ Excluir com UUID inválido (400)
+  DELETE http://os-service:8080/api/v1/parts/nao-e-uuid [400 Bad Request, 274B, 3ms]
+  ✓  status 400
+  ✓  error.code = VALIDATION_ERROR
+
+┌─────────────────────────┬───────────────────┬──────────────────┐
+│                         │          executed │           failed │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              iterations │                 1 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│                requests │                61 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│            test-scripts │                61 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│      prerequest-scripts │                14 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              assertions │               131 │                0 │
+├─────────────────────────┴───────────────────┴──────────────────┤
+│ total run duration: 13.9s                                      │
+├────────────────────────────────────────────────────────────────┤
+│ total data received: 61.34kB (approx)                          │
+├────────────────────────────────────────────────────────────────┤
+│ average response time: 15ms [min: 3ms, max: 138ms, s.d.: 26ms] │
+└────────────────────────────────────────────────────────────────┘
+
+    etapa                                                                    requisições  asserções        falhas
+1.  os-service: autenticação, cadastros, token do cliente e abertura das OS           79        168             0
+2.  execution-service: diagnóstico                                                    34         82             0
+3.  billing-service: orçamento, decisão do cliente, pagamento e webhook               39         88             0
+4.  execution-service: reparo e compensações                                          12         27             0
+5.  billing-service: compensações                                                      6         14             0
+6.  os-service: entrega, consultas do cliente, compensações e limpeza                 61        131             0
+    total                                                                            231        510             0
+
+✔ collections Postman: 0 falhas
