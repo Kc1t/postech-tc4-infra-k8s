@@ -18,7 +18,7 @@ O widget *Motivos de compensação* (página *Saga*) agrupa os mesmos motivos. O
 
 | Motivo (`reason`) | Tipo | O que fazer |
 |---|---|---|
-| contém `simulate_failure=` | falha simulada | Esperado na demo (`X-Simulate-Failure` com `FAULT_INJECTION_ENABLED=true`). Fora da demo, desligar com `scripts/setup-github.sh vars` e refazer o deploy dos serviços. |
+| contém `simulate_failure=` | falha simulada (conta como **técnica** no SLO, porque simula uma falha técnica) | Esperado na demo (`X-Simulate-Failure` com `FAULT_INJECTION_ENABLED=true`). Fora da demo, desligar com `scripts/setup-github.sh vars` e refazer o deploy dos serviços. |
 | `orçamento recusado pelo cliente`, `cancelada pela oficina` | negócio | Nenhuma ação técnica. |
 | `prazo de aprovação ... expirado`, `prazo de pagamento expirado` | negócio | Ver [saga-expirada.md](saga-expirada.md): muitas de uma vez podem ser resposta perdida. |
 | `estoque insuficiente para a peça X` | negócio | Repor o estoque da peça no catálogo do os-service. |
