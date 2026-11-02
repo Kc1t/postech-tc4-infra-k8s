@@ -30,7 +30,12 @@ jobs:
 
       - run: terraform validate
 
+      # Versão fixa e token do job: sem token, o download do tfsec pela API do GitHub esbarra no
+      # limite por IP do runner (60 requisições por hora) e derruba o job.
       - uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          version: v1.28.14
+          github_token: ${{ github.token }}
 
   # Plan contra o state de producao, o unico ambiente na AWS (ADR-0021): o PR e a homolog
   # validam a mudanca contra o que existe de fato.
