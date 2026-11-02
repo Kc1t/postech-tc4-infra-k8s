@@ -37,11 +37,11 @@ Cada serviço provisiona o próprio banco (banco por serviço, [ADR-0012](https:
 
 | Repositório | `go test` | SonarQube | Evidência |
 |---|---|---|---|
-| os-service | 86,3% | 83,6% | [CI](https://github.com/Kc1t/postech-tc4-os-service/actions/workflows/ci.yml) |
-| billing-service | 95,7% | 94,7% | [CI](https://github.com/Kc1t/postech-tc4-billing-service/actions/workflows/ci.yml) |
-| execution-service | 95,6% | 95,3% | [CI](https://github.com/Kc1t/postech-tc4-execution-service/actions/workflows/ci.yml) |
-| lambda-auth | 91,4% | 90,6% | [CI](https://github.com/Kc1t/postech-tc4-lambda-auth/actions/workflows/ci.yml) |
-| notification-lambda | 92,0% | 89,0% | [CI](https://github.com/Kc1t/postech-tc4-notification-lambda/actions/workflows/ci.yml) |
+| os-service | 91,9% | 92,6% | [CI](https://github.com/Kc1t/postech-tc4-os-service/actions/workflows/ci.yml) |
+| billing-service | 95,8% | 96,5% | [CI](https://github.com/Kc1t/postech-tc4-billing-service/actions/workflows/ci.yml) |
+| execution-service | 95,8% | 96,8% | [CI](https://github.com/Kc1t/postech-tc4-execution-service/actions/workflows/ci.yml) |
+| lambda-auth | 91,4% | 92,6% | [CI](https://github.com/Kc1t/postech-tc4-lambda-auth/actions/workflows/ci.yml) |
+| notification-lambda | 92,0% | 92,7% | [CI](https://github.com/Kc1t/postech-tc4-notification-lambda/actions/workflows/ci.yml) |
 
 Os cinco pipelines reprovam abaixo de 80% e publicam no resumo de cada execução a cobertura e a tabela do SonarQube, com o quality gate aprovado (0 bugs, 0 vulnerabilidades, 0 code smells, 0% de duplicação). O detalhe de cada número está no README do repositório. Este repositório não tem código Go: o pipeline dele valida o Terraform (`fmt`, `validate`, `tfsec`), e a integração entre os serviços é verificada pelo [e2e local](local/README.md).
 
