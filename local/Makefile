@@ -1,5 +1,5 @@
 # Ambiente de integração ponta a ponta (precisa dos repositórios postech-tc4-* lado a lado).
-.PHONY: contracts up lambdas e2e all gateway demo logs down clean
+.PHONY: contracts up lambdas e2e postman all gateway demo logs down clean
 
 # pkg/contracts (structs e JSON Schemas das mensagens) idêntico nos quatro repositórios.
 contracts:
@@ -13,6 +13,11 @@ lambdas:
 
 e2e:
 	./e2e.sh
+
+# As collections Postman dos três serviços com newman (em container), intercaladas no fluxo da OS.
+# Sobe o gateway (POST /auth → Lambda issuer) se ele não estiver no ar.
+postman:
+	./postman.sh
 
 all: contracts up lambdas e2e
 
