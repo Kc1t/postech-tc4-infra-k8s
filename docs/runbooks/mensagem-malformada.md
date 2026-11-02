@@ -8,7 +8,7 @@ O que dispara:
 - `message_malformed` nos três serviços (`pkg/messaging/consumer.go`): o envelope não passou no `contracts.Parse`. JSON inválido, sem `message_id` ou `type`, ou `version` maior que a que o consumidor conhece (`contracts: versão de envelope não suportada`). O log traz `consumer` (a fila) e `sqs_message_id`.
 - `notification_invalid_message` e `notification_invalid_payload` na Lambda de notificação: envelope ou payload do `os.ServiceOrderStatusChanged` inválidos.
 
-Payload inválido dentro de um envelope bom não é `message_malformed`: o handler devolve erro, o log é `message_failed` com `error` contendo `payload inválido para <tipo>` e o caminho é o da [DLQ](dlq.md).
+Payload inválido dentro de um envelope bom não é `message_malformed`: o handler devolve erro (o billing registra antes `payload_malformed`), o log do consumidor é `message_failed` com `error` contendo `payload inválido para <tipo>` e o caminho é o da [DLQ](dlq.md).
 
 ## 1. Qual fila e qual produtor (até 10 min)
 
@@ -35,7 +35,7 @@ Para ver o corpo sem consumir, use o comando do passo 1 do [dlq.md](dlq.md) na f
 |---|---|---|
 | `versão de envelope não suportada` | O produtor foi publicado com um `contracts.Version` novo antes do consumidor | Publicar o consumidor com a versão nova (ou voltar o produtor com `kubectl -n postech rollout undo deploy/<produtor>`). Depois, redrive da DLQ. |
 | `envelope sem message_id ou type` | Publicação fora do `pkg/messaging` (teste manual, script) | Descobrir a origem pelo `sqs_message_id` e pelo `SenderId` da mensagem; descartar. |
-| `envelope inválido` (JSON) | Corpo corrompido, ou assinatura SNS sem raw delivery entregando o invólucro | Conferir `raw_message_delivery = true` em `messaging.tf`. Corpo corrompido de fato: descartar (passo 4 do [dlq.md](dlq.md)). |
+| `envelope inválido` (JSON) | Corpo que não é JSON: publicação manual ou corpo corrompido. Assinatura sem raw delivery não causa este erro: o consumidor (`pkg/messaging`) e a Lambda desembrulham o invólucro do SNS | Descobrir a origem pelo `sqs_message_id`; descartar (passo 4 do [dlq.md](dlq.md)). |
 | `payload inválido para <tipo>` | Campo mudou de tipo ou de nome entre produtor e consumidor | Alinhar o contrato nos dois repositórios (teste de contrato) e fazer o redrive. |
 
 ## 3. Encerramento
