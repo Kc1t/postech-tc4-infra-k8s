@@ -120,6 +120,7 @@ helm/newrelic-values.yaml            valores do nri-bundle
 observability/                       dashboard, alertas, SLOs e workload do New Relic (raiz Terraform própria)
 docs/runbooks/                       o que fazer quando cada alerta dispara
 scripts/setup-github.sh              secrets e variáveis dos seis repositórios
+scripts/configurar_github.py         o mesmo, num passo só (Python)
 scripts/demo.sh                      roteiro da demonstração pelo gateway (caminho feliz e duas compensações)
 local/                               ambiente ponta a ponta com docker compose e LocalStack
 .github/workflows/                   terraform.yml (infra) e observability.yml (New Relic)
@@ -194,6 +195,8 @@ O gateway se liga sozinho ao que existe: as Lambdas são encontradas pelo nome (
 ## Configuração dos repositórios
 
 [`scripts/setup-github.sh`](scripts/setup-github.sh) grava os secrets e as variáveis dos seis repositórios com o `gh` CLI. Os segredos são digitados sem eco, lidos do `~/.aws/credentials` ou gerados pelo script.
+
+Para configurar tudo de uma vez há também o [`scripts/configurar_github.py`](scripts/configurar_github.py): pergunta cada valor uma vez (Enter pula e mantém o que já existe), cria o bucket do state, só gera `JWT_SECRET` e `INTERNAL_API_TOKEN` se ainda não existirem, grava `CORS_ALLOWED_ORIGINS=*`, deixa `PAYMENT_GATEWAY=fake` até o token e o segredo do webhook do Mercado Pago estarem cadastrados e não liga os deploys sozinho (`--enable` liga, `--aws` só renova as credenciais do lab, `--status` lista).
 
 | Comando | O que grava |
 |---|---|
